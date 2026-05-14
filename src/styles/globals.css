@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+@theme {
+  /* Typography Definition */
+  --font-inter: "Inter Variable", sans-serif;
+
+  /* Semantic Color Tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+@layer base {
+  /* Font Face Implementation */
+  @font-face {
+    font-family: 'Inter Variable';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+  }
+
+  :root {
+    --background: #ffffff;
+    --foreground: #09090b;
+    --card: #ffffff;
+    --card-foreground: #09090b;
+    --border: #e4e4e7;
+    --primary: #18181b;
+    --primary-foreground: #fafafa;
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    --destructive: #ef4444;
+    --destructive-foreground: #fafafa;
+    --success: #22c55e;
+    --warning: #f59e0b;
+  }
+
+  .dark {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #09090b;
+    --card-foreground: #fafafa;
+    --border: #27272a;
+    --primary: #fafafa;
+    --primary-foreground: #18181b;
+    --secondary: #27272a;
+    --secondary-foreground: #fafafa;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --destructive: #7f1d1d;
+    --destructive-foreground: #fafafa;
+  }
+
+  /* Typography & Rendering */
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-family: var(--font-inter);
+    letter-spacing: -0.015em;
+  }
+
+  /* No italics globally */
+  em, i, .italic {
+    font-style: normal !important;
+  }
+
+  /* 1. Global Resets for Native Feel */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    box-sizing: border-box;
+  }
+
+  /* 2. Scroll & Viewport Locking */
+  html, body {
+    overflow: hidden;
+    overscroll-behavior: none;
+    height: 100dvh;
+    width: 100vw;
+  }
+
+  /* 3. The Fixed App Shell Container */
+  #root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--background);
+  }
+
+  /* 4. Force 16px to prevent iOS zoom */
+  input, textarea, select {
+    font-size: 16px !important;
+    touch-action: pan-y;
+  }
+}
+
+@layer components {
+  /* Accent Color Variants */
+  .accent-blue { --primary: #3b82f6; --primary-foreground: #ffffff; }
+  .accent-orange { --primary: #f97316; --primary-foreground: #ffffff; }
+  .accent-green { --primary: #10b981; --primary-foreground: #ffffff; }
+}
