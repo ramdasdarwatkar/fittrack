@@ -3,39 +3,42 @@ import { Timer } from "lucide-react";
 import { BottomNav } from "./BottomNav";
 
 export default function MainLayout() {
-  // Placeholders for state visualization
   const hasActiveSession = true;
   const isTimerRunning = false;
 
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-4 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800">
-        <h1 className="text-xl font-black tracking-tighter italic text-emerald-500">
+    <div className="flex flex-col w-full h-full bg-background text-foreground">
+      <header className="shrink-0 flex items-center justify-between px-6 py-4 bg-card/80 backdrop-blur-md border-b border-border">
+        <h1 className="text-xl font-black tracking-tighter text-primary">
           FITTRACK
         </h1>
 
         <div className="flex items-center gap-3">
           {hasActiveSession && (
-            <div className="flex items-center gap-2 bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-emerald-500 uppercase">
+            <div className="flex items-center gap-2 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+
+              <span className="text-[10px] font-bold text-primary uppercase">
                 Live
               </span>
             </div>
           )}
+
           {isTimerRunning && (
-            <Timer className="w-5 h-5 text-amber-500 animate-spin-slow" />
+            <Timer className="w-5 h-5 text-warning animate-spin-slow" />
           )}
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 pb-24">
-        <Outlet />
+      <main
+        className="flex-1 min-h-0 overflow-y-auto overscroll-none"
+        style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
+      >
+        <div className="pb-24">
+          <Outlet />
+        </div>
       </main>
 
-      {/* Modular Bottom Navigation */}
       <BottomNav />
     </div>
   );

@@ -1,10 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Typography Definition */
-  --font-inter: "Inter Variable", sans-serif;
-
-  /* Semantic Color Tokens */
+  --font-inter: "Inter Variable", -apple-system, BlinkMacSystemFont, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -23,13 +20,12 @@
 }
 
 @layer base {
-  /* Font Face Implementation */
   @font-face {
     font-family: 'Inter Variable';
     font-style: normal;
     font-display: swap;
     font-weight: 100 900;
-    src: url('/fonts/Inter-VariableFont_opsz,wght.ttf') format('truetype');
+    src: url('/fonts/InterVariable.ttf') format('truetype');
   }
 
   :root {
@@ -66,49 +62,43 @@
     --destructive-foreground: #fafafa;
   }
 
-  /* Typography & Rendering */
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-family: var(--font-inter);
     letter-spacing: -0.015em;
+    -webkit-text-size-adjust: 100%;
   }
 
-  /* No italics globally */
   em, i, .italic {
     font-style: normal !important;
   }
 
-  /* 1. Global Resets for Native Feel */
   * {
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
     box-sizing: border-box;
   }
 
-  /* 2. Scroll & Viewport Locking */
   html, body {
-    overflow: hidden;
+    margin: 0;
+    padding: 0;
     overscroll-behavior: none;
-    height: 100dvh;
-    width: 100vw;
-  }
-
-  /* 3. The Fixed App Shell Container */
-  #root {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    height: 100%;
+    width: 100%;
     background-color: var(--background);
   }
 
-  /* 4. Force 16px to prevent iOS zoom */
+  /* Single source of truth for the app shell */
+ #root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background);
+  padding-top: env(safe-area-inset-top);
+}
+
   input, textarea, select {
     font-size: 16px !important;
     touch-action: pan-y;
@@ -116,7 +106,6 @@
 }
 
 @layer components {
-  /* Accent Color Variants */
   .accent-blue { --primary: #3b82f6; --primary-foreground: #ffffff; }
   .accent-orange { --primary: #f97316; --primary-foreground: #ffffff; }
   .accent-green { --primary: #10b981; --primary-foreground: #ffffff; }
