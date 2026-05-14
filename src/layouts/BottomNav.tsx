@@ -12,9 +12,7 @@ export function BottomNav() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border"
-      style={{
-        paddingBottom: "0.5rem",
-      }}
+      style={{ paddingBottom: "0.5rem" }}
     >
       <div className="grid h-20 grid-cols-4 mx-auto max-w-md px-4">
         {navItems.map((item) => (

@@ -7,12 +7,11 @@ export default function MainLayout() {
   const isTimerRunning = false;
 
   return (
-    <div className="flex flex-col w-full h-full bg-background text-foreground">
-      <header className="shrink-0 flex items-center justify-between px-6 py-4 bg-card/80 backdrop-blur-md border-b border-border">
+    <div className="flex flex-col w-full h-dvh bg-background text-foreground">
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-card/80 backdrop-blur-md border-b border-border">
         <h1 className="text-xl font-black tracking-tighter text-primary">
           FITTRACK
         </h1>
-
         <div className="flex items-center gap-3">
           {hasActiveSession && (
             <div className="flex items-center gap-2 bg-primary/10 px-2 py-1 rounded-full border border-primary/20">
@@ -29,16 +28,14 @@ export default function MainLayout() {
           )}
         </div>
       </header>
-
       <main
-        className="flex-1 min-h-0 overflow-y-auto overscroll-none"
+        className="flex-1 overflow-y-auto overscroll-none"
         style={{ WebkitOverflowScrolling: "touch" } as React.CSSProperties}
       >
         <div className="pb-24">
           <Outlet />
         </div>
       </main>
-
       <BottomNav />
     </div>
   );

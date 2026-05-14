@@ -91,7 +91,7 @@
   }
 
   /* Single source of truth for the app shell */
- #root {
+  #root {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -109,4 +109,14 @@
   .accent-blue { --primary: #3b82f6; --primary-foreground: #ffffff; }
   .accent-orange { --primary: #f97316; --primary-foreground: #ffffff; }
   .accent-green { --primary: #10b981; --primary-foreground: #ffffff; }
+}
+
+/* Hide scrollbar globally */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
