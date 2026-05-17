@@ -1,38 +1,40 @@
-import { createHashRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import AuthGuard from "./AuthGuard";
 import MainLayout from "@/layouts/MainLayout";
 import Dashboard from "@/pages/Dashboard";
+import Login from "@/pages/Login";
+import Onboarding from "@/pages/Onboarding";
 
-// Placeholders for routes we haven't built yet
-const Placeholder = ({ title }: { title: string }) => (
-  <div className="p-6 text-zinc-500 font-mono text-sm">
-    {title} Page (Coming Soon)
-  </div>
-);
-
-const router = createHashRouter([
+const router = createBrowserRouter(
+  [
+    {
+      element: <AuthGuard />,
+      children: [
+        {
+          path: "/login",
+          element: <Login />,
+        },
+        {
+          path: "/onboarding",
+          element: <Onboarding />,
+        },
+        {
+          path: "/",
+          element: <MainLayout />, // Dashboard and sub-pages live here
+          children: [
+            { index: true, element: <Dashboard /> },
+            { path: "workout", element: <div>Workout Page</div> },
+            { path: "history", element: <div>History Page</div> },
+            { path: "settings", element: <div>Settings Page</div> },
+          ],
+        },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <MainLayout />,
-    children: [
-      {
-        index: true,
-        element: <Dashboard />,
-      },
-      {
-        path: "workout",
-        element: <Placeholder title="Workout" />,
-      },
-      {
-        path: "history",
-        element: <Placeholder title="History" />,
-      },
-      {
-        path: "settings",
-        element: <Placeholder title="Settings" />,
-      },
-    ],
+    basename: "/fittrack",
   },
-]);
+);
 
 export default function AppRouter() {
   return <RouterProvider router={router} />;

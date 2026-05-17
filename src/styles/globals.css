@@ -34,7 +34,7 @@
     --card: #ffffff;
     --card-foreground: #09090b;
     --border: #e4e4e7;
-    --primary: #18181b;
+    --primary: #6f6fee;
     --primary-foreground: #fafafa;
     --secondary: #f4f4f5;
     --secondary-foreground: #18181b;
@@ -52,7 +52,7 @@
     --card: #09090b;
     --card-foreground: #fafafa;
     --border: #27272a;
-    --primary: #fafafa;
+    --primary: #6f6fee;
     --primary-foreground: #18181b;
     --secondary: #27272a;
     --secondary-foreground: #fafafa;
@@ -120,3 +120,8 @@
 *::-webkit-scrollbar {
   display: none; /* Chrome/Safari */
 }
+
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
