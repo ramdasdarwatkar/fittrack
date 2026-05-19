@@ -1,9 +1,14 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import AuthGuard from "./AuthGuard";
 import MainLayout from "@/layouts/MainLayout";
+import SubPageLayout from "@/layouts/SubPageLayout";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import Onboarding from "@/pages/Onboarding";
+import Library from "@/pages/Library";
+import ExerciseForm from "@/components/exercises/ExerciseForm";
+import RoutineForm from "@/components/routines/RoutineForm";
+import Workout from "@/pages/Workout";
 
 const router = createBrowserRouter(
   [
@@ -20,12 +25,50 @@ const router = createBrowserRouter(
         },
         {
           path: "/",
-          element: <MainLayout />, // Dashboard and sub-pages live here
+          element: <MainLayout />,
           children: [
             { index: true, element: <Dashboard /> },
-            { path: "workout", element: <div>Workout Page</div> },
+            { path: "library", element: <Library /> },
             { path: "history", element: <div>History Page</div> },
             { path: "settings", element: <div>Settings Page</div> },
+          ],
+        },
+        {
+          path: "/library",
+          element: <SubPageLayout />,
+          children: [
+            {
+              path: "exercise/create",
+              element: <ExerciseForm />,
+              handle: { title: "Create Movement" }, // Defined explicitly per page details
+            },
+            {
+              path: "exercise/:id",
+              element: <ExerciseForm />,
+              handle: { title: "Movement Details" },
+            },
+            {
+              path: "routine/create",
+              element: <RoutineForm />,
+              handle: { title: "Create Routine" },
+            },
+            {
+              path: "routine/:id",
+              element: <RoutineForm />,
+              handle: { title: "Edit Routine Flow" },
+            },
+          ],
+        },
+        /* WORKOUT PATH ENGINE INJECTION CHECKPOINT */
+        {
+          path: "/workout",
+          element: <SubPageLayout />, // Reuses your clean top bar layout back-button shell
+          children: [
+            {
+              index: true,
+              element: <Workout />,
+              handle: { title: "Active Workout Session" }, // Automatically sets title without path metadata strings
+            },
           ],
         },
       ],

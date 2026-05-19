@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
+import { Plus, CalendarClock } from "lucide-react";
 import { db } from "@/db";
 import { supabase } from "@/lib/supabase";
 import { SyncService } from "@/services/SyncService";
@@ -10,7 +11,7 @@ export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // 1. STATE-GATED AUTOMATED SYNC: Evaluates ONLY during direct entry sequences
+  // 1. STATE-GATED AUTOMATED SYNC
   useEffect(() => {
     if (location.state?.syncOnMount) {
       console.log(
@@ -25,7 +26,6 @@ export default function Dashboard() {
         }
 
         try {
-          // Pass 'true' to explicitly bypass the 5-minute cooldown safety net for this special event
           await SyncService.pullAll();
         } catch (err) {
           console.error("[Sync] Entry pull failed:", err);
@@ -33,9 +33,6 @@ export default function Dashboard() {
       };
 
       executeAuthSync();
-
-      // CRITICAL FLUSH: Instantly strip the state flag out of the history stack window object.
-      // This guarantees that clicking back/forward, resizing, or refreshing won't fire it again.
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
@@ -51,7 +48,7 @@ export default function Dashboard() {
     getSessionUser();
   }, []);
 
-  // 3. Reactive Local Queries (Live UI feedback tracking updates)
+  // 3. Reactive Local Queries
   const profile = useLiveQuery(
     async () => (userId ? await db.userProfiles.get(userId) : null),
     [userId],
@@ -76,7 +73,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 select-none">
       <header>
         <h2 className="text-3xl font-extrabold tracking-tight">Dashboard</h2>
         <p className="text-zinc-500 text-sm">
@@ -126,9 +123,22 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <button className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-emerald-900/20">
-        Start New Workout
-      </button>
+      {/* WORKOUT INITIALIZATION LAYOUT ACTION DOCK */}
+      <div className="flex flex-col gap-3 pt-2">
+        <button
+          onClick={() => navigate("/workout")}
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest h-14 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-98 shadow-lg shadow-emerald-900/10 cursor-pointer"
+        >
+          <Plus size={16} strokeWidth={3} /> Start Today's Workout
+        </button>
+
+        <button
+          onClick={() => navigate("/workout?mode=retro")}
+          className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-black uppercase tracking-widest h-14 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-98 border border-zinc-800 cursor-pointer"
+        >
+          <CalendarClock size={16} /> Log Past Workout
+        </button>
+      </div>
     </div>
   );
 }

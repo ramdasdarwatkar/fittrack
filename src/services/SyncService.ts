@@ -4,6 +4,8 @@ import type { Database } from "@/db/supabase";
 import { ProfileService } from "./ProfileService";
 import { BodyMetricsService } from "./BodyMetricsService";
 import { GoalService } from "./GoalService";
+import { ExerciseService } from "./ExerciseService";
+import { RoutineService } from "./RoutineService";
 
 type TableName = keyof Database["public"]["Tables"];
 
@@ -70,8 +72,8 @@ export const SyncService = {
 
       const sanitized = data.map((row: any) => ({
         ...row,
-        is_dirty: false,
-        is_deleted: false,
+        is_dirty: 0,
+        is_deleted: 0,
       }));
 
       await db.table(dexieTable).bulkPut(sanitized);
@@ -95,7 +97,13 @@ export const SyncService = {
     if (isPushing) return;
     isPushing = true;
 
-    const services = [ProfileService, BodyMetricsService, GoalService];
+    const services = [
+      ProfileService,
+      BodyMetricsService,
+      GoalService,
+      ExerciseService,
+      RoutineService,
+    ];
     console.log("push called");
     try {
       await Promise.all(

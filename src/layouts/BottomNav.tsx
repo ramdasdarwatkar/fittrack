@@ -3,7 +3,7 @@ import { LayoutDashboard, Dumbbell, History, Settings } from "lucide-react";
 
 const navItems = [
   { to: "/", icon: <LayoutDashboard size={22} />, label: "Dash" },
-  { to: "/workout", icon: <Dumbbell size={22} />, label: "Workout" },
+  { to: "/library", icon: <Dumbbell size={22} />, label: "Library" },
   { to: "/history", icon: <History size={22} />, label: "History" },
   { to: "/settings", icon: <Settings size={22} />, label: "Settings" },
 ];

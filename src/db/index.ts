@@ -29,8 +29,12 @@ export type LocalGoal = Syncable<Tables<"goals">>;
 export type LocalExercise = Syncable<Tables<"exercises">>;
 export type LocalRoutine = Syncable<Tables<"routines">>;
 export type LocalRoutineExercise = Syncable<Tables<"routine_exercises">>;
-export type LocalWorkout = Syncable<Tables<"workouts">>;
-export type LocalSet = Syncable<Tables<"sets">>;
+export type LocalWorkout = Syncable<Tables<"workouts">> & {
+  completed: 1 | 0;
+};
+export type LocalSet = Syncable<Tables<"sets">> & {
+  completed: 1 | 0;
+};
 export type LocalPersonalRecord = Syncable<Tables<"personal_records">>;
 export type LocalStep = Syncable<Tables<"steps">>;
 export type LocalXpLog = Syncable<Tables<"xp_log">>;
@@ -81,7 +85,7 @@ export class FitTrackDB extends Dexie {
       routines: "id, user_id, updated_at, is_dirty, is_deleted",
       routineExercises:
         "[routine_id+exercise_id], routine_id, exercise_id, is_dirty, is_deleted",
-      workouts: "id, user_id, date, is_dirty, is_deleted",
+      workouts: "id, user_id, date, is_dirty, is_deleted, completed",
       sets: "id, workout_id, exercise_id, user_id, is_dirty, is_deleted",
       steps: "[user_id+date], user_id, date, is_dirty, is_deleted",
       xpLog: "id, user_id, date, is_dirty, is_deleted",
