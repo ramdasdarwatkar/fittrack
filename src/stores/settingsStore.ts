@@ -15,7 +15,7 @@ interface SettingsActions {
 export const useSettingsStore = create<SettingsState & SettingsActions>()(
   persist(
     (set) => ({
-      // Updated Initial State
+      // Initial State
       theme: "system",
       accentColor: "default",
       weightUnit: "kg",
@@ -25,9 +25,35 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
       defaultRestTimer: 90,
 
       // Actions
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        // Logic to update the DOM class for Tailwind
+        const isDark =
+          theme === "dark" ||
+          (theme === "system" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-      setAccentColor: (accentColor) => set({ accentColor }),
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+
+        set({ theme });
+      },
+
+      // Add to your useSettingsStore.ts inside the persist function:
+      setAccentColor: (accentColor) => {
+        // Remove all existing accent classes
+        const accentClasses = ['accent-blue', 'accent-orange', 'accent-green', 'accent-purple', 'accent-pink', 'accent-yellow'];
+        document.documentElement.classList.remove(...accentClasses);
+
+        // Add the new one
+        if (accentColor !== 'default') {
+          document.documentElement.classList.add(`accent-${accentColor}`);
+        }
+
+        set({ accentColor });
+      },
 
       setWeightUnit: (weightUnit) => set({ weightUnit }),
 
@@ -42,6 +68,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>()(
     {
       name: "fittrack-settings-storage",
       storage: createJSONStorage(() => localStorage),
-    },
-  ),
+    }
+  )
 );

@@ -1,10 +1,20 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Dumbbell, History, Settings } from "lucide-react";
+import {
+  LayoutDashboard,
+  Dumbbell,
+  History,
+  Settings,
+  ChartColumnBigIcon,
+} from "lucide-react";
 
 const navItems = [
   { to: "/", icon: <LayoutDashboard size={22} />, label: "Dash" },
   { to: "/library", icon: <Dumbbell size={22} />, label: "Library" },
-  { to: "/history", icon: <History size={22} />, label: "History" },
+  {
+    to: "/performance",
+    icon: <ChartColumnBigIcon size={22} />,
+    label: "Trends",
+  },
   { to: "/settings", icon: <Settings size={22} />, label: "Settings" },
 ];
 

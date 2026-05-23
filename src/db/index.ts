@@ -81,7 +81,8 @@ export class FitTrackDB extends Dexie {
       exercises:
         "id, user_id, muscle_group_id, muscle_id, is_dirty, is_deleted",
       goals: "id, user_id, goaltype, completed_at, is_dirty, is_deleted",
-      personalRecords: "id, user_id, exercise_id, prtype, is_dirty, is_deleted",
+      personalRecords:
+        "id, [user_id+exercise_id+created_at],user_id,exercise_id,created_at, prtype, set_id, is_dirty, is_deleted",
       routines: "id, user_id, updated_at, is_dirty, is_deleted",
       routineExercises:
         "[routine_id+exercise_id], routine_id, exercise_id, is_dirty, is_deleted",

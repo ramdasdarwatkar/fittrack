@@ -16,6 +16,12 @@ export const MuscleGroupService = {
     return await db.muscleGroups.get(id);
   },
 
+  async getMuscleGroupName(id: number): Promise<string | null> {
+    if (!id) return null;
+    const mg = await this.getOne(id);
+    return mg?.name || null;
+  },
+
   /**
    * Reference Pull Operation: Clears the local static cache, downloads
    * the absolute source matrix from Supabase, and populates the database.

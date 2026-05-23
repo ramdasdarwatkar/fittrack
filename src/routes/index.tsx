@@ -9,6 +9,9 @@ import Library from "@/pages/Library";
 import ExerciseForm from "@/components/exercises/ExerciseForm";
 import RoutineForm from "@/components/routines/RoutineForm";
 import Workout from "@/pages/Workout";
+import History from "@/pages/History";
+import { WorkoutDetailPage } from "@/components/history/WorkoutDetailPage";
+import { Settings } from "@/pages/Settings";
 
 const router = createBrowserRouter(
   [
@@ -29,8 +32,7 @@ const router = createBrowserRouter(
           children: [
             { index: true, element: <Dashboard /> },
             { path: "library", element: <Library /> },
-            { path: "history", element: <div>History Page</div> },
-            { path: "settings", element: <div>Settings Page</div> },
+            { path: "settings", element: <Settings /> },
           ],
         },
         {
@@ -67,7 +69,24 @@ const router = createBrowserRouter(
             {
               index: true,
               element: <Workout />,
-              handle: { title: "Active Workout Session" }, // Automatically sets title without path metadata strings
+              handle: { title: "Workout" }, // Automatically sets title without path metadata strings
+            },
+          ],
+        },
+        /* HISTORY LOGBOOK PATH ENGINE SUB-LAYOUT INJECTION */
+        {
+          path: "/history",
+          element: <SubPageLayout />,
+          children: [
+            {
+              index: true,
+              element: <History />,
+              handle: { title: "Logbook" },
+            },
+            {
+              path: ":id", // ← add this
+              element: <WorkoutDetailPage />,
+              handle: { title: "Workout Details" },
             },
           ],
         },

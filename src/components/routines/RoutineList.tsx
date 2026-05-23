@@ -47,8 +47,10 @@ export default function RoutineList() {
 
             {/* ACTION PLAY BUTTON RUN */}
             <button
-              onClick={() => navigate(`/workout/start/${routine.id}`)}
-              className="w-full h-14 bg-primary text-primary-foreground rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-lg shadow-primary/10 cursor-pointer"
+              onClick={() =>
+                navigate(`/workout?mode=routine&routineId=${routine.id}`)
+              }
+              className="w-full h-14 bg-primary text-primary-foreground text-xs font-black uppercase tracking-widest rounded-xl flex items-center justify-center gap-3 active:scale-[0.98] transition-all shadow-lg shadow-primary/10 cursor-pointer"
             >
               <Play size={16} fill="currentColor" />
               <span className="font-black text-xs uppercase tracking-[0.2em]">
