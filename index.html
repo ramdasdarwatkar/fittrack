@@ -1,58 +1,69 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <link rel="preload" href="/fittrack/fonts/InterVariable.ttf" as="font" type="font/ttf" crossorigin />
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
 
-    <title>FitTrack</title>
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- <script>
-      (function() {
-        try {
-          const savedTheme = localStorage.getItem('fittrack-settings-storage');
-          let theme = 'system';
-          if (savedTheme) {
-            const parsed = JSON.parse(savedTheme);
-            theme = parsed.state.theme || 'system';
-          }
-          const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (isDark) {
-            document.documentElement.classList.add('dark');
-          } else {
-            document.documentElement.classList.remove('dark');
-          }
-        } catch (e) {
-          console.error('Theme initialization failed', e);
+  <link rel="preload" href="/fittrack/fonts/InterVariable.ttf" as="font" type="font/ttf" crossorigin />
+
+  <title>FitTrack</title>
+
+  <script>
+    (function () {
+      try {
+        const savedTheme = localStorage.getItem('fittrack-settings-storage');
+        let theme = 'system';
+        if (savedTheme) {
+          const parsed = JSON.parse(savedTheme);
+          theme = parsed.state.theme || 'system';
         }
-      })();
-    </script> -->
+        const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (isDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      } catch (e) {
+        console.error('Theme initialization failed', e);
+      }
+    })();
+  </script>
 
-    <!-- Minimal flash-prevention only — NO #root styles here -->
-    <style>
-      :root { --bg-light: #ffffff; --bg-dark:#09090b; }
-      html, body {
-        margin: 0;
-        padding: 0;
-        background-color: var(--bg-light);
-      }
-      html.dark, html.dark body {
-        background-color: var(--bg-dark);
-      }
-    </style>
-    <script type="module" crossorigin src="/fittrack/assets/index-D8mOl06x.js"></script>
-    <link rel="modulepreload" crossorigin href="/fittrack/assets/rolldown-runtime-BYbx6iT9.js">
-    <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-Fw4BYVul.js">
-    <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-react-BBgBOh1I.js">
-    <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-ui-BhxVUYwa.js">
-    <link rel="stylesheet" crossorigin href="/fittrack/assets/index-oRtMiZ44.css">
-  <link rel="manifest" href="/fittrack/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/fittrack/registerSW.js"></script></head>
-  <body>
-    <div id="root"></div>
-  </body>
+  <!-- Minimal flash-prevention only — NO #root styles here -->
+  <style>
+    :root {
+      --bg-light: #ffffff;
+      --bg-dark: #09090b;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-light);
+    }
+
+    html.dark,
+    html.dark body {
+      background-color: var(--bg-dark);
+    }
+  </style>
+  <script type="module" crossorigin src="/fittrack/assets/index-DCaMQHmb.js"></script>
+  <link rel="modulepreload" crossorigin href="/fittrack/assets/rolldown-runtime-BYbx6iT9.js">
+  <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-B4CYTKAT.js">
+  <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-react-nguXdOhH.js">
+  <link rel="modulepreload" crossorigin href="/fittrack/assets/vendor-ui-C2h9cXYO.js">
+  <link rel="stylesheet" crossorigin href="/fittrack/assets/index-CwWPJe8L.css">
+<link rel="manifest" href="/fittrack/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/fittrack/registerSW.js"></script></head>
+
+<body>
+  <div id="root"></div>
+</body>
+
 </html>
