@@ -24,12 +24,11 @@ export default function SubPageLayout() {
   return (
     <div
       className="w-full flex flex-col bg-background text-foreground overflow-hidden"
-      style={{ height: "var(--app-height, 100dvh)" }}
+      style={{ height: "calc(var(--app-height, 100dvh) - env(safe-area-inset-top, 0px))" }}
     >
       {/* HEADER — safe-area top via inline style for iOS notch/Dynamic Island */}
       <header
         className="shrink-0 bg-background/90 backdrop-blur-md border-b border-border"
-        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="flex items-center h-14 px-4">
           <button
