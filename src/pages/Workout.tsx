@@ -102,8 +102,14 @@ export default function Workout() {
 
   const handleAddExercises = async (selected: Tables<"exercises">[]) => {
     if (!activeWorkout || !userId) return;
+    
+    // Filter out exercises that already exist in the workout to prevent duplicates
+    const newUniqueSelected = selected.filter(
+      (ex) => !exerciseOrder.includes(ex.id)
+    );
+    
     const newAddedIds: string[] = [];
-    for (const ex of selected) {
+    for (const ex of newUniqueSelected) {
       // PATCHED: Use numeric sequence (ex index + 1.01)
       const base =
         Math.floor(
@@ -118,7 +124,9 @@ export default function Workout() {
       newAddedIds.push(ex.id);
       setExpanded(ex.id, true);
     }
-    setExerciseOrder([...new Set([...exerciseOrder, ...newAddedIds])]);
+    
+    // Append the new unique exercises in the selection order
+    setExerciseOrder([...exerciseOrder, ...newAddedIds]);
     setPickerOpen(false);
   };
 
@@ -307,6 +315,7 @@ export default function Workout() {
         onClose={() => setPickerOpen(false)}
         onConfirm={handleAddExercises}
         library={exerciseLibrary}
+        existingExerciseIds={exerciseOrder}
       />
       <WorkoutSummaryModal
         isOpen={doneOpen}

@@ -169,7 +169,7 @@ export default function Dashboard() {
       className="min-h-screen select-none"
       style={{ background: "var(--background)", color: "var(--foreground)" }}
     >
-      <div className="px-4 pt-4 pb-32 space-y-6">
+      <div className="px-4 pt-4 pb-4 space-y-6">
         {/* ── Header ── */}
         <header className="flex justify-between items-start pt-2">
           <div className="flex flex-col">
@@ -315,17 +315,17 @@ export default function Dashboard() {
             style={
               activeSession
                 ? {
-                    background: "color-mix(in srgb, var(--warning) 90%, black)",
-                    color: "#000",
-                    boxShadow:
-                      "0 4px 18px color-mix(in srgb, var(--warning) 35%, transparent)",
-                  }
+                  background: "color-mix(in srgb, var(--warning) 90%, black)",
+                  color: "#000",
+                  boxShadow:
+                    "0 4px 18px color-mix(in srgb, var(--warning) 35%, transparent)",
+                }
                 : {
-                    background: "var(--primary)",
-                    color: "var(--primary-foreground)",
-                    boxShadow:
-                      "0 4px 18px color-mix(in srgb, var(--primary) 35%, transparent)",
-                  }
+                  background: "var(--primary)",
+                  color: "var(--primary-foreground)",
+                  boxShadow:
+                    "0 4px 18px color-mix(in srgb, var(--primary) 35%, transparent)",
+                }
             }
           >
             {activeSession ? (

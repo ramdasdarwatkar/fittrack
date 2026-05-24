@@ -10,6 +10,7 @@ interface ExerciseSelectorModalProps {
   onClose: () => void;
   onConfirm: (selectedExercises: Tables<"exercises">[]) => void;
   library: Tables<"exercises">[];
+  existingExerciseIds?: string[];
 }
 
 export default function ExerciseSelectorModal({
@@ -17,6 +18,7 @@ export default function ExerciseSelectorModal({
   onClose,
   onConfirm,
   library,
+  existingExerciseIds = [],
 }: ExerciseSelectorModalProps) {
   const [search, setSearch] = useState("");
   const [activeChip, setActiveChip] = useState<number | "ALL">("ALL");
@@ -38,7 +40,9 @@ export default function ExerciseSelectorModal({
   }, [library, search, activeChip]);
 
   const handleConfirm = () => {
-    const selected = library.filter((ex) => tempSelectedIds.includes(ex.id));
+    const selected = tempSelectedIds
+      .map((id) => library.find((ex) => ex.id === id))
+      .filter((ex): ex is Tables<"exercises"> => !!ex);
     onConfirm(selected);
     setTempSelectedIds([]);
     setSearch("");
@@ -141,10 +145,12 @@ export default function ExerciseSelectorModal({
             <div className="flex-1 overflow-y-auto px-6 pt-2 pb-36 touch-pan-y no-scrollbar">
               <div className="space-y-1.5">
                 {filteredList.map((ex) => {
+                  const isAlreadySelected = existingExerciseIds.includes(ex.id);
                   const isChecked = tempSelectedIds.includes(ex.id);
                   return (
                     <button
                       key={ex.id}
+                      disabled={isAlreadySelected}
                       onClick={() =>
                         setTempSelectedIds((prev) =>
                           isChecked
@@ -152,29 +158,52 @@ export default function ExerciseSelectorModal({
                             : [...prev, ex.id],
                         )
                       }
-                      className="w-full py-4 flex items-center justify-between border-b border-border/40 active:bg-secondary/40 transition-colors text-left cursor-pointer"
+                      className={`w-full py-4 flex items-center justify-between border-b border-border/40 transition-colors text-left ${
+                        isAlreadySelected
+                          ? "opacity-40 cursor-not-allowed"
+                          : "active:bg-secondary/40 cursor-pointer"
+                      }`}
                     >
                       <div className="flex flex-col min-w-0 pr-4">
                         <span
-                          className={`font-black text-sm uppercase tracking-tight truncate ${isChecked ? "text-primary" : "text-foreground"}`}
+                          className={`font-black text-sm uppercase tracking-tight truncate ${
+                            isAlreadySelected
+                              ? "text-muted-foreground"
+                              : isChecked
+                              ? "text-primary"
+                              : "text-foreground"
+                          }`}
                         >
                           {ex.name}
                         </span>
                         {ex.variation && (
-                          <span className="text-[9px] font-bold text-primary uppercase tracking-wider mt-0.5">
+                          <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
+                            isAlreadySelected ? "text-muted-foreground/60" : "text-primary"
+                          }`}>
                             {ex.variation}
+                          </span>
+                        )}
+                        {isAlreadySelected && (
+                          <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest mt-0.5">
+                            Already Added
                           </span>
                         )}
                       </div>
 
                       <div
                         className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all shrink-0 ${
-                          isChecked
+                          isAlreadySelected
+                            ? "bg-muted border-border text-muted-foreground"
+                            : isChecked
                             ? "bg-primary border-primary text-primary-foreground"
                             : "border-border bg-secondary"
                         }`}
                       >
-                        {isChecked && <Check size={14} strokeWidth={3} />}
+                        {isAlreadySelected ? (
+                          <Check size={14} strokeWidth={3} className="opacity-60" />
+                        ) : isChecked ? (
+                          <Check size={14} strokeWidth={3} />
+                        ) : null}
                       </div>
                     </button>
                   );
