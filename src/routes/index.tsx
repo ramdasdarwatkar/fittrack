@@ -11,7 +11,12 @@ import RoutineForm from "@/components/routines/RoutineForm";
 import Workout from "@/pages/Workout";
 import History from "@/pages/History";
 import { WorkoutDetailPage } from "@/components/history/WorkoutDetailPage";
-import { Settings } from "@/pages/Settings";
+import Settings from "@/pages/Settings";
+import AppearanceSettings from "@/components/settings/AppearanceSettings";
+import BodyMetricsSettings from "@/components/settings/BodyMetricsSettings";
+import SyncSettings from "@/components/settings/SyncSettings";
+import XPLevelsSettings from "@/components/settings/XPLevelsSettings";
+
 
 const router = createBrowserRouter(
   [
@@ -42,7 +47,7 @@ const router = createBrowserRouter(
             {
               path: "exercise/create",
               element: <ExerciseForm />,
-              handle: { title: "Create Movement" }, // Defined explicitly per page details
+              handle: { title: "Create Movement" },
             },
             {
               path: "exercise/:id",
@@ -64,12 +69,12 @@ const router = createBrowserRouter(
         /* WORKOUT PATH ENGINE INJECTION CHECKPOINT */
         {
           path: "/workout",
-          element: <SubPageLayout />, // Reuses your clean top bar layout back-button shell
+          element: <SubPageLayout />,
           children: [
             {
               index: true,
               element: <Workout />,
-              handle: { title: "Workout" }, // Automatically sets title without path metadata strings
+              handle: { title: "Workout" },
             },
           ],
         },
@@ -84,9 +89,36 @@ const router = createBrowserRouter(
               handle: { title: "Logbook" },
             },
             {
-              path: ":id", // ← add this
+              path: ":id",
               element: <WorkoutDetailPage />,
               handle: { title: "Workout Details" },
+            },
+          ],
+        },
+        /* SETTINGS SUB-PAGES */
+        {
+          path: "/settings",
+          element: <SubPageLayout />,
+          children: [
+            {
+              path: "appearance",
+              element: <AppearanceSettings />,
+              handle: { title: "Appearance" },
+            },
+            {
+              path: "body-metrics",
+              element: <BodyMetricsSettings />,
+              handle: { title: "Body Metrics" },
+            },
+            {
+              path: "xp-levels",
+              element: <XPLevelsSettings />,
+              handle: { title: "XP & Levels" },
+            },
+            {
+              path: "sync",
+              element: <SyncSettings />,
+              handle: { title: "Sync Status" },
             },
           ],
         },

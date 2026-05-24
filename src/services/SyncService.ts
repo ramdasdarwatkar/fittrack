@@ -6,6 +6,11 @@ import { BodyMetricsService } from "./BodyMetricsService";
 import { GoalService } from "./GoalService";
 import { ExerciseService } from "./ExerciseService";
 import { RoutineService } from "./RoutineService";
+import { WorkoutService } from "./WorkoutService";
+import { WorkoutSetService } from "./SetService";
+import { PersonalRecordsService } from "./PersonalRecordsService";
+import { StepsService } from "./StepsService";
+import { XpService } from "./XpService";
 
 type TableName = keyof Database["public"]["Tables"];
 
@@ -70,11 +75,17 @@ export const SyncService = {
       }
       if (!data || data.length === 0) return;
 
-      const sanitized = data.map((row: any) => ({
-        ...row,
-        is_dirty: 0,
-        is_deleted: 0,
-      }));
+      const sanitized = data.map((row: any) => {
+        const item: any = {
+          ...row,
+          is_dirty: 0,
+          is_deleted: 0,
+        };
+        if (supabaseTable === "workouts" || supabaseTable === "sets") {
+          item.completed = 1;
+        }
+        return item;
+      });
 
       await db.table(dexieTable).bulkPut(sanitized);
 
@@ -93,6 +104,43 @@ export const SyncService = {
     }
   },
 
+  async pushTable(supabaseTable: TableName) {
+    switch (supabaseTable) {
+      case "user_profiles":
+        await ProfileService.push();
+        break;
+      case "body_metrics":
+        await BodyMetricsService.push();
+        break;
+      case "goals":
+        await GoalService.push();
+        break;
+      case "exercises":
+        await ExerciseService.push();
+        break;
+      case "routines":
+        await RoutineService.push();
+        break;
+      case "workouts":
+        await WorkoutService.push();
+        break;
+      case "sets":
+        await WorkoutSetService.push();
+        break;
+      case "personal_records":
+        await PersonalRecordsService.push();
+        break;
+      case "steps":
+        await StepsService.push();
+        break;
+      case "xp_log":
+        await XpService.push();
+        break;
+      default:
+        console.warn(`[Sync] No push service registered for ${supabaseTable}`);
+    }
+  },
+
   async pushAll() {
     if (isPushing) return;
     isPushing = true;
@@ -103,6 +151,11 @@ export const SyncService = {
       GoalService,
       ExerciseService,
       RoutineService,
+      WorkoutService,
+      WorkoutSetService,
+      PersonalRecordsService,
+      StepsService,
+      XpService,
     ];
     console.log("push called");
     try {
@@ -113,7 +166,7 @@ export const SyncService = {
           } catch (e) {
             console.error(`[Sync] Service push runtime crash:`, e);
           }
-        }),
+        })
       );
     } finally {
       isPushing = false;

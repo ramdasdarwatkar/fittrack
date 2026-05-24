@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { supabase } from "@/lib/supabase";
 import { SyncUtils } from "@/sync/SyncUtils";
 import type { LocalPersonalRecord } from "@/db";
+import { XpService } from "./XpService";
 
 export const PersonalRecordsService = {
   /**
@@ -57,6 +58,13 @@ export const PersonalRecordsService = {
     };
 
     await db.personalRecords.put(newRecord);
+
+    try {
+      await XpService.rewardPR(userId);
+    } catch (xpErr) {
+      console.error("[PersonalRecordsService] Failed to reward PR XP:", xpErr);
+    }
+
     return newRecord;
   },
 
@@ -65,7 +73,7 @@ export const PersonalRecordsService = {
    */
   async push(): Promise<void> {
     const { toDelete, toUpsert } =
-      await SyncUtils.getPendingChanges("personal_records");
+      await SyncUtils.getPendingChanges("personalRecords");
 
     if (toDelete.length > 0) {
       const ids = toDelete.map((r) => r.id);

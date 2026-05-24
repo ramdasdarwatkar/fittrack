@@ -14,7 +14,12 @@ export const SyncUtils = {
 
     // Fast in-memory separation
     const toDelete = dirtyRecords.filter((row) => row.is_deleted === 1);
-    const toUpsert = dirtyRecords.filter((row) => row.is_deleted === 0);
+    let toUpsert = dirtyRecords.filter((row) => row.is_deleted === 0);
+
+    // Only push completed workouts/sets to the server
+    if (tableName === "workouts" || tableName === "sets") {
+      toUpsert = toUpsert.filter((row) => row.completed === 1);
+    }
 
     return { toDelete, toUpsert };
   },

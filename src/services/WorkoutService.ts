@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import type { TablesInsert } from "@/db/supabase";
 import { SyncUtils } from "@/sync/SyncUtils";
 import type { LocalWorkout } from "@/db";
+import { XpService } from "./XpService";
 
 export const WorkoutService = {
   async getActiveSession(): Promise<LocalWorkout | undefined> {
@@ -55,12 +56,41 @@ export const WorkoutService = {
       end_time: string;
       duration_sec: number;
       note: string | null;
+      user_id?: string;
     },
   ): Promise<void> {
     await this.updateSession(workoutId, {
       ...finalData,
       completed: 1,
     });
+
+    try {
+      // 1. Resolve actual user_id from the active session if not directly provided
+      let finalUserId = finalData.user_id;
+      if (!finalUserId) {
+        const session = await db.workouts.get(workoutId);
+        finalUserId = session?.user_id || "";
+      }
+
+      if (finalUserId) {
+        // 2. Evaluate if Cardio or Strength Workout
+        const isCardio = finalData.note?.toLowerCase().includes("cardio") || false;
+        if (isCardio) {
+          if (finalData.duration_sec >= 1200) { // 20 minutes
+            await XpService.rewardCardio(finalUserId, finalData.date);
+          }
+        } else {
+          if (finalData.duration_sec >= 2700) { // 45 minutes
+            await XpService.rewardWorkout(finalUserId, finalData.date);
+          }
+        }
+
+        // 3. Reset and sweep inactivity penalties rolling backwards
+        await XpService.evaluateInactivityPenalty(finalUserId);
+      }
+    } catch (xpErr) {
+      console.error("[WorkoutService] Failed to reward completion XP:", xpErr);
+    }
   },
 
   async deleteSessionLocal(workoutId: string): Promise<void> {
@@ -84,6 +114,12 @@ export const WorkoutService = {
       updated_at: new Date().toISOString(),
     };
     await db.workouts.put(restDay);
+
+    try {
+      await XpService.rewardRestDay(userId, date);
+    } catch (xpErr) {
+      console.error("[WorkoutService] Failed to reward Rest Day XP:", xpErr);
+    }
   },
 
   async push(): Promise<void> {
@@ -96,7 +132,7 @@ export const WorkoutService = {
     }
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
-        ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
+        ({ is_dirty: _d, is_deleted: _del, completed: _c, ...rest }) => rest,
       );
       const { error } = await supabase.from("workouts").upsert(payload);
       if (!error) {
