@@ -38,6 +38,7 @@ import { HumanAnatomy } from "@/components/anatomy/HumanAnatomy";
 const getTodayDateString = (): string => new Date().toISOString().split("T")[0];
 
 export default function Dashboard() {
+  const BASE_URL = import.meta.env.BASE_URL || "/";
   const [userId, setUserId] = useState<string | null>(null);
 
   // Time Travel Date state (defaults to today)
@@ -818,7 +819,7 @@ export default function Dashboard() {
               <div className="relative w-16 h-28 shrink-0 flex items-center justify-center">
                 {/* Background outline */}
                 <img
-                  src="/svg/water_bottle.svg"
+                  src={`${BASE_URL}svg/water_bottle.svg`}
                   className="absolute inset-0 w-full h-full object-contain opacity-25"
                   alt="Bottle Background"
                 />
@@ -827,8 +828,8 @@ export default function Dashboard() {
                 <div
                   className="absolute inset-0 w-full h-full"
                   style={{
-                    maskImage: "url('/svg/water_bottle.svg')",
-                    WebkitMaskImage: "url('/svg/water_bottle.svg')",
+                    maskImage: `url('${BASE_URL}svg/water_bottle.svg')`,
+                    WebkitMaskImage: `url('${BASE_URL}svg/water_bottle.svg')`,
                     maskSize: "contain",
                     WebkitMaskSize: "contain",
                     maskRepeat: "no-repeat",
@@ -848,7 +849,7 @@ export default function Dashboard() {
 
                 {/* Foreground outline & reflections */}
                 <img
-                  src="/svg/water_bottle.svg"
+                  src={`${BASE_URL}svg/water_bottle.svg`}
                   className="absolute inset-0 w-full h-full object-contain pointer-events-none mix-blend-multiply dark:mix-blend-screen"
                   alt="Bottle Glass"
                 />
