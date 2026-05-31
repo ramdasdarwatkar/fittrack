@@ -16,6 +16,8 @@ export default defineConfig({
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
         name: "FitTrack Pro",
+
+
         short_name: "FitTrack",
         description: "Offline-first Workout Tracker",
         theme_color: "#000000",

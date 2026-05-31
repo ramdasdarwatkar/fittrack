@@ -168,6 +168,9 @@ export const XpService = {
         penaltyDateObj.setDate(penaltyDateObj.getDate() + i);
         const penaltyDateStr = penaltyDateObj.toISOString().split("T")[0];
 
+        // Bypass the current date during inactivity penalty calculation
+        if (penaltyDateStr === todayStr) continue;
+
         const existingPenalty = await db.xpLog
           .where("user_id")
           .equals(userId)
@@ -178,6 +181,54 @@ export const XpService = {
           await addXpLog(userId, penaltyDateStr, -5, "Inactivity Penalty", "INACTIVE");
         }
       }
+    }
+  },
+
+  async revertPRRewardForToday(userId: string) {
+    const todayStr = getTodayStr();
+
+    // Check if there are other active PRs remaining today
+    const remainingPrs = await db.personalRecords
+      .where("user_id")
+      .equals(userId)
+      .filter((pr) => pr.is_deleted === 0 && pr.created_at.startsWith(todayStr))
+      .toArray();
+
+    if (remainingPrs.length > 0) {
+      console.log(`[XpService] PR reward not reverted: ${remainingPrs.length} other PRs logged today.`);
+      return;
+    }
+
+    const prLog = await db.xpLog
+      .where("user_id")
+      .equals(userId)
+      .filter((x) => x.date === todayStr && x.is_deleted === 0 && x.reward === "PR")
+      .first();
+
+    if (prLog) {
+      // Soft-delete the XP log entry so it syncs deletion to Supabase
+      await db.xpLog.put({
+        ...prLog,
+        is_deleted: 1,
+        is_dirty: 1,
+        updated_at: new Date().toISOString()
+      });
+
+      // Subtract the rewarded XP from the user profile
+      const profile = await db.userProfiles.get(userId);
+      if (profile) {
+        const newXp = Math.max(0, (profile.xp || 0) - prLog.delta);
+        const newCurrentXp = Math.max(0, (profile.current_xp || 0) - prLog.delta);
+
+        await db.userProfiles.put({
+          ...profile,
+          xp: newXp,
+          current_xp: newCurrentXp,
+          is_dirty: 1,
+          updated_at: new Date().toISOString()
+        });
+      }
+      console.log(`[XpService] Reverted today's PR reward of ${prLog.delta} XP for user ${userId}`);
     }
   },
 

@@ -72,6 +72,7 @@ export default memo(function WorkoutSetRow({
     (state) => state.triggerPRCelebration,
   );
   const isChecked = setRow.completed === 1;
+  const setIndex = allExerciseSets.findIndex((s) => s.id === setRow.id);
 
   const handleCycleType = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -186,7 +187,7 @@ export default memo(function WorkoutSetRow({
             {typeStyle.label}
           </span>
         ) : (
-          <span>{Math.floor(Number(setRow.set_number))}</span>
+          <span>{setIndex !== -1 ? setIndex + 1 : Math.floor(Number(setRow.set_number))}</span>
         )}
       </button>
 

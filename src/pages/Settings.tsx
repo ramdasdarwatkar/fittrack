@@ -103,22 +103,13 @@ export default function Settings() {
         >
             {/* ── Profile header ── */}
             <div
-                className="relative w-full overflow-hidden px-5 pt-10 pb-7"
-                style={{ borderBottom: "1px solid var(--border)" }}
+                className="relative w-full overflow-hidden px-5 pb-7"
+                style={{
+                    borderBottom: "1px solid var(--border)",
+                    paddingTop: "calc(env(safe-area-inset-top) + 24px)",
+                    background: "var(--background)",
+                }}
             >
-                {/* Ambient glow */}
-                <div aria-hidden style={{
-                    position: "absolute", top: -60, right: -60,
-                    width: 220, height: 220, borderRadius: "50%",
-                    background: "color-mix(in srgb, var(--primary) 16%, transparent)",
-                    filter: "blur(60px)", pointerEvents: "none",
-                }} />
-                <div aria-hidden style={{
-                    position: "absolute", bottom: -40, left: -20,
-                    width: 140, height: 140, borderRadius: "50%",
-                    background: "color-mix(in srgb, var(--success) 10%, transparent)",
-                    filter: "blur(40px)", pointerEvents: "none",
-                }} />
 
                 <div className="flex items-center gap-4 relative z-10">
                     {/* Avatar */}

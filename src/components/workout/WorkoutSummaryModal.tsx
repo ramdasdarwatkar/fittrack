@@ -55,16 +55,25 @@ export default function WorkoutSummaryModal({
     let finalStartIso = workout.start_time || new Date().toISOString();
     let finalDateString = workout.date;
 
-    if (isRetroactive && retroDate && retroStart && retroEnd) {
-      const startDateTime = new Date(`${retroDate}T${retroStart}:00`);
-      const endDateTime = new Date(`${retroDate}T${retroEnd}:00`);
-      computedDuration = Math.max(
-        0,
-        Math.floor((endDateTime.getTime() - startDateTime.getTime()) / 1000),
-      );
-      finalStartIso = startDateTime.toISOString();
-      finalEndIso = endDateTime.toISOString();
-      finalDateString = retroDate;
+    if (isRetroactive) {
+      if (retroDate && retroStart && retroEnd) {
+        const startDateTime = new Date(`${retroDate}T${retroStart}:00`);
+        const endDateTime = new Date(`${retroDate}T${retroEnd}:00`);
+        computedDuration = Math.max(
+          0,
+          Math.floor((endDateTime.getTime() - startDateTime.getTime()) / 1000),
+        );
+        finalStartIso = startDateTime.toISOString();
+        finalEndIso = endDateTime.toISOString();
+        finalDateString = retroDate;
+      } else {
+        computedDuration = workout.duration_sec ?? 0;
+        finalEndIso = workout.end_time || finalEndIso;
+      }
+    } else {
+      const startMs = new Date(finalStartIso).getTime();
+      const endMs = new Date(finalEndIso).getTime();
+      computedDuration = Math.max(0, Math.floor((endMs - startMs) / 1000));
     }
 
     await WorkoutService.completeSession(workout.id, {

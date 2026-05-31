@@ -30,6 +30,31 @@ const TABLE_MAP: Record<TableName, string> = {
   xp_log: "xpLog",
 };
 
+const TABLE_DAYS: Record<TableName, number | null> = {
+  user_profiles: null,
+  body_metrics: null,
+  goals: null,
+  muscle_groups: null,
+  muscles: null,
+  exercises: null,
+  routines: null,
+  routine_exercises: null,
+  workouts: 180,
+  sets: 180,
+  personal_records: 180,
+  steps: 180,
+  xp_log: 30,
+};
+
+function getStartDateLimit(days: number | null | undefined): string {
+  if (days === null || days === undefined) {
+    return "2026-05-01T00:00:00.000Z";
+  }
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date.toISOString();
+}
+
 let isPulling = false;
 let isPushing = false;
 
@@ -44,7 +69,8 @@ export const SyncService = {
     isPulling = true;
     try {
       for (const table of Object.keys(TABLE_MAP) as TableName[]) {
-        await this.pullTable(table);
+        const days = TABLE_DAYS[table];
+        await this.pullTable(table, days);
       }
     } catch (error) {
       console.error("[Sync] Pull cycle collapsed:", error);
@@ -53,11 +79,20 @@ export const SyncService = {
     }
   },
 
-  async pullTable(supabaseTable: TableName) {
+  async pullTable(supabaseTable: TableName, days?: number | null) {
     const dexieTable = TABLE_MAP[supabaseTable];
     try {
       const meta = await db.syncMetadata.get(supabaseTable);
-      const lastTimestamp = meta?.last_pulled_at || "2026-01-01T00:00:00.000Z";
+      const lastPulledAt = meta?.last_pulled_at;
+
+      const daysLimit = days !== undefined ? days : TABLE_DAYS[supabaseTable];
+      const maxDaysStart = getStartDateLimit(daysLimit);
+
+      let lastTimestamp = maxDaysStart;
+      if (lastPulledAt && lastPulledAt > maxDaysStart) {
+        lastTimestamp = lastPulledAt;
+      }
+
       const timeColumn = "updated_at";
 
       const { data, error } = await supabase

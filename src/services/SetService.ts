@@ -73,7 +73,18 @@ export const WorkoutSetService = {
   async deleteSetsForWorkout(workoutId: string): Promise<void> {
     const sets = await db.sets.where({ workout_id: workoutId }).toArray();
     const setIds = sets.map((s) => s.id);
-    await db.personalRecords.where("set_id").anyOf(setIds).delete();
+    
+    // Soft-delete personalRecords linked to these sets so the deletion is synced
+    const prs = await db.personalRecords.where("set_id").anyOf(setIds).toArray();
+    for (const pr of prs) {
+      await db.personalRecords.put({
+        ...pr,
+        is_deleted: 1,
+        is_dirty: 1,
+        updated_at: new Date().toISOString()
+      });
+    }
+
     await db.sets.bulkDelete(setIds);
   },
 

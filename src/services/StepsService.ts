@@ -5,10 +5,12 @@ import { XpService } from "./XpService";
 
 export const StepsService = {
   async logSteps(userId: string, date: string, count: number): Promise<void> {
+    const existing = await db.steps.get([userId, date]);
     const record = {
       user_id: userId,
       date,
-      value: count,
+      steps: count,
+      water: existing?.water ?? 0,
       updated_at: new Date().toISOString(),
       is_dirty: 1 as const,
       is_deleted: 0 as const,
@@ -22,6 +24,20 @@ export const StepsService = {
         console.error("[StepsService] Failed to reward Steps XP:", xpErr);
       }
     }
+  },
+
+  async logWater(userId: string, date: string, amount: number): Promise<void> {
+    const existing = await db.steps.get([userId, date]);
+    const record = {
+      user_id: userId,
+      date,
+      steps: existing?.steps ?? 0,
+      water: amount,
+      updated_at: new Date().toISOString(),
+      is_dirty: 1 as const,
+      is_deleted: 0 as const,
+    };
+    await db.steps.put(record);
   },
 
   async push(): Promise<void> {

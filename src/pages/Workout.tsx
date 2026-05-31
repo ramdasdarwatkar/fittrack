@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { ExerciseService } from "@/services/ExerciseService";
 import { WorkoutService } from "@/services/WorkoutService";
 import { WorkoutSetService } from "@/services/SetService";
+import { XpService } from "@/services/XpService";
 import { useWorkoutUIStore } from "@/stores/useWorkoutUIStore";
 import { useWorkoutInitializer } from "@/hooks/useWorkoutInitializer";
 
@@ -109,20 +110,45 @@ export default function Workout() {
     );
     
     const newAddedIds: string[] = [];
-    for (const ex of newUniqueSelected) {
-      // PATCHED: Use numeric sequence (ex index + 1.01)
-      const base =
-        Math.floor(
-          Math.max(0, ...currentWorkoutSets.map((s) => Number(s.set_number))),
-        ) + 1;
-      await WorkoutSetService.addSetRow(
-        activeWorkout.id,
-        ex.id,
-        userId,
-        base + 0.1,
-      );
+    const currentMaxBase = Math.floor(
+      Math.max(
+        0,
+        ...currentWorkoutSets
+          .map((s) => Number(s.set_number))
+          .filter((n) => !isNaN(n))
+      )
+    );
+
+    const setsToInsert: LocalWorkoutSet[] = [];
+    const nowStr = new Date().toISOString();
+
+    for (let i = 0; i < newUniqueSelected.length; i++) {
+      const ex = newUniqueSelected[i];
+      const base = currentMaxBase + i + 1;
+      
+      setsToInsert.push({
+        id: crypto.randomUUID(),
+        workout_id: activeWorkout.id,
+        user_id: userId,
+        exercise_id: ex.id,
+        set_number: base + 0.1,
+        set_type: "MAIN",
+        completed: 0,
+        is_dirty: 1,
+        is_deleted: 0,
+        updated_at: nowStr,
+        reps: null,
+        weight: null,
+        distance_meters: null,
+        duration_sec: null,
+      });
+
       newAddedIds.push(ex.id);
       setExpanded(ex.id, true);
+    }
+    
+    if (setsToInsert.length > 0) {
+      await WorkoutSetService.addBatchSets(setsToInsert);
     }
     
     // Append the new unique exercises in the selection order
@@ -132,8 +158,12 @@ export default function Workout() {
 
   const handleDiscard = async () => {
     if (!activeWorkout) return;
+    const userId = activeWorkout.user_id;
     await WorkoutService.deleteSessionLocal(activeWorkout.id);
     await WorkoutSetService.deleteSetsForWorkout(activeWorkout.id);
+    if (userId) {
+      await XpService.revertPRRewardForToday(userId);
+    }
     clearUIState();
     setDiscardOpen(false);
     navigate("/");

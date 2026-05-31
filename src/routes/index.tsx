@@ -12,6 +12,7 @@ import Workout from "@/pages/Workout";
 import History from "@/pages/History";
 import { WorkoutDetailPage } from "@/components/history/WorkoutDetailPage";
 import Settings from "@/pages/Settings";
+import Trends from "@/pages/Trends";
 import AppearanceSettings from "@/components/settings/AppearanceSettings";
 import BodyMetricsSettings from "@/components/settings/BodyMetricsSettings";
 import SyncSettings from "@/components/settings/SyncSettings";
@@ -37,6 +38,7 @@ const router = createBrowserRouter(
           children: [
             { index: true, element: <Dashboard /> },
             { path: "library", element: <Library /> },
+            { path: "performance", element: <Trends /> },
             { path: "settings", element: <Settings /> },
           ],
         },

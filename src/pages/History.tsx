@@ -258,11 +258,12 @@ function NoWorkoutState({
           {/* Log Workout — primary with premium look */}
           <button
             onClick={onLogWorkout}
-            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs transition-all active:scale-95 uppercase tracking-widest cursor-pointer"
+            disabled={isToday}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold text-xs transition-all active:scale-95 uppercase tracking-widest cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
             style={{
-              backgroundColor: "var(--primary)",
-              color: "var(--primary-foreground)",
-              boxShadow: "0 4px 20px color-mix(in srgb, var(--primary) 28%, transparent)",
+              backgroundColor: isToday ? "var(--muted)" : "var(--primary)",
+              color: isToday ? "var(--muted-foreground)" : "var(--primary-foreground)",
+              boxShadow: isToday ? "none" : "0 4px 20px color-mix(in srgb, var(--primary) 28%, transparent)",
               letterSpacing: "0.08em",
             }}
           >
@@ -1047,6 +1048,9 @@ export default function History() {
     return today;
   });
   const [activeWorkout, setActiveWorkout] = useState<LocalWorkout | null>(null);
+  const [showTimeModal, setShowTimeModal] = useState(false);
+  const [retroStartTime, setRetroStartTime] = useState("10:00");
+  const [retroEndTime, setRetroEndTime] = useState("11:00");
   const [viewDate, setViewDate] = useState<Date>(() => {
     const saved = sessionStorage.getItem("history_view_date");
     if (cameFromDetails && saved) {
@@ -1213,11 +1217,7 @@ export default function History() {
                 await WorkoutService.logRestDay(userId, selectedDateStr);
               }
             }}
-            onLogWorkout={() =>
-              navigate(
-                `/workout?mode=retro&date=${selectedDateStr}&startTime=${defaultRetroStart}&endTime=${defaultRetroEnd}`,
-              )
-            }
+            onLogWorkout={() => setShowTimeModal(true)}
           />
         )}
 
@@ -1227,6 +1227,122 @@ export default function History() {
         {/* ── Workout card ── */}
         {hasWorkout && <HistoryDetails workout={activeWorkout} />}
       </div>
+
+      {/* ── Beautiful Glassmorphic Time Selector Modal ── */}
+      {showTimeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300"
+          style={{
+            background: "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl p-6 overflow-hidden relative"
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.4)",
+            }}
+          >
+            {/* Ambient Background Glow */}
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: -60,
+                right: -60,
+                width: 150,
+                height: 150,
+                borderRadius: "50%",
+                background: "color-mix(in srgb, var(--primary) 15%, transparent)",
+                filter: "blur(40px)",
+                pointerEvents: "none",
+              }}
+            />
+
+            <h3
+              className="text-lg font-black tracking-tight mb-1"
+              style={{ letterSpacing: "-0.02em", color: "var(--foreground)" }}
+            >
+              Set Workout Window
+            </h3>
+            <p className="text-xs opacity-60 mb-6" style={{ color: "var(--muted-foreground)" }}>
+              Specify the start and end times for your retro workout.
+            </p>
+
+            <div className="space-y-4 mb-6">
+              {/* Start Time Input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                  Start Time
+                </label>
+                <input
+                  type="time"
+                  value={retroStartTime}
+                  onChange={(e) => setRetroStartTime(e.target.value)}
+                  className="w-full h-12 px-4 rounded-xl text-sm font-semibold border focus:outline-none transition-all"
+                  style={{
+                    background: "var(--secondary)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                />
+              </div>
+
+              {/* End Time Input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                  End Time
+                </label>
+                <input
+                  type="time"
+                  value={retroEndTime}
+                  onChange={(e) => setRetroEndTime(e.target.value)}
+                  className="w-full h-12 px-4 rounded-xl text-sm font-semibold border focus:outline-none transition-all"
+                  style={{
+                    background: "var(--secondary)",
+                    borderColor: "var(--border)",
+                    color: "var(--foreground)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowTimeModal(false)}
+                className="flex-1 py-3 rounded-xl font-semibold text-xs transition-all active:scale-95 cursor-pointer text-center"
+                style={{
+                  backgroundColor: "transparent",
+                  color: "var(--muted-foreground)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTimeModal(false);
+                  navigate(
+                    `/workout?mode=retro&date=${selectedDateStr}&startTime=${retroStartTime}&endTime=${retroEndTime}`,
+                  );
+                }}
+                className="flex-1 py-3 rounded-xl font-black text-xs transition-all active:scale-95 uppercase tracking-widest cursor-pointer text-center text-primary-foreground"
+                style={{
+                  backgroundColor: "var(--primary)",
+                  boxShadow: "0 4px 15px color-mix(in srgb, var(--primary) 25%, transparent)",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

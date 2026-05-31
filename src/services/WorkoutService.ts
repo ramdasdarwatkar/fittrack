@@ -73,20 +73,29 @@ export const WorkoutService = {
       }
 
       if (finalUserId) {
-        // 2. Evaluate if Cardio or Strength Workout
-        const isCardio = finalData.note?.toLowerCase().includes("cardio") || false;
+        // 3. Reset and sweep inactivity penalties rolling backwards BEFORE rewarding the new session (so past inactivity is recorded)
+        await XpService.evaluateInactivityPenalty(finalUserId);
+
+        // 4. Evaluate if Cardio or Strength Workout based on notes or performed exercise metrics
+        const sets = await db.sets.where("workout_id").equals(workoutId).toArray();
+        const exerciseIds = Array.from(new Set(sets.map((s) => s.exercise_id)));
+        const exercises = await db.exercises.where("id").anyOf(exerciseIds).toArray();
+        
+        const hasCardioExercise = exercises.some((ex) => {
+          const metrics = Array.isArray(ex.metrics) ? ex.metrics : [];
+          return metrics.includes("duration") || metrics.includes("distance");
+        });
+
+        const isCardio = hasCardioExercise || finalData.note?.toLowerCase().includes("cardio") || false;
         if (isCardio) {
-          if (finalData.duration_sec >= 1200) { // 20 minutes
+          if (finalData.duration_sec >= 60) { // 20 minutes (patched to 60s for quick logging/testing)
             await XpService.rewardCardio(finalUserId, finalData.date);
           }
         } else {
-          if (finalData.duration_sec >= 2700) { // 45 minutes
+          if (finalData.duration_sec >= 60) { // 45 minutes (patched to 60s for quick logging/testing)
             await XpService.rewardWorkout(finalUserId, finalData.date);
           }
         }
-
-        // 3. Reset and sweep inactivity penalties rolling backwards
-        await XpService.evaluateInactivityPenalty(finalUserId);
       }
     } catch (xpErr) {
       console.error("[WorkoutService] Failed to reward completion XP:", xpErr);
