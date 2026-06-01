@@ -35,6 +35,8 @@ export const BodyMetricsService = {
         await db.bodyMetrics.bulkDelete(
           toDelete.map((m) => [m.user_id, m.date]),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
 
@@ -52,6 +54,8 @@ export const BodyMetricsService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

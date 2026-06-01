@@ -347,7 +347,7 @@ function RestDayState({ dateStr }: { dateStr: string }) {
 export interface DayMeta {
   hasWorkout: boolean;
   isRestDay: boolean;
-  workout?: LocalWorkout;
+  workouts: LocalWorkout[];
 }
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -370,7 +370,7 @@ interface HistoryCalendarProps {
   monthDataMap: Record<string, DayMeta>;
   selectedDateStr: string;
   profileCreatedDateStr?: string | null;
-  onSelectDate: (dateStr: string, workout?: LocalWorkout) => void;
+  onSelectDate: (dateStr: string, workouts?: LocalWorkout[]) => void;
   onMonthChange: (year: number, month: number) => void;
 }
 
@@ -552,7 +552,7 @@ export function HistoryCalendar({
             <button
               key={idx}
               onClick={() =>
-                !cell.overflow && !isDisabledDay && onSelectDate(cell.dateString, meta?.workout)
+                !cell.overflow && !isDisabledDay && onSelectDate(cell.dateString, meta?.workouts)
               }
               disabled={cell.overflow || isDisabledDay}
               className="aspect-square rounded-md flex flex-col items-center justify-center relative transition-all duration-200"
@@ -595,9 +595,18 @@ export function HistoryCalendar({
 interface HistoryDetailsProps {
   workout: LocalWorkout;
   onMenu?: (workout: LocalWorkout) => void;
+  showDateHeader?: boolean;
+  totalWorkouts?: number;
+  showTapHint?: boolean;
 }
 
-export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
+export function HistoryDetails({
+  workout,
+  onMenu,
+  showDateHeader = true,
+  totalWorkouts = 1,
+  showTapHint = true,
+}: HistoryDetailsProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -623,11 +632,12 @@ export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
 
   const sets = useLiveQuery(async () => {
     if (!workout?.id) return null;
-    return db.sets
+    const rawSets = await db.sets
       .where("workout_id")
       .equals(workout.id)
       .filter((s) => s.is_deleted === 0)
       .toArray();
+    return rawSets.sort((a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0));
   }, [workout?.id]);
 
   const exerciseData = useLiveQuery(async () => {
@@ -678,10 +688,16 @@ export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
     0,
   );
 
+  const exerciseEntries = Object.entries(grouped).sort((a, b) => {
+    const minA = Number(a[1][0]?.set_number ?? 0);
+    const minB = Number(b[1][0]?.set_number ?? 0);
+    return minA - minB;
+  });
+
   const muscleGroups = [
     ...new Set(
-      Object.keys(grouped)
-        .map((id) => exerciseData[id]?.muscleName)
+      exerciseEntries
+        .map(([id]) => exerciseData[id]?.muscleName)
         .filter(Boolean),
     ),
   ].join(", ");
@@ -689,7 +705,6 @@ export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
   const { day, num } = formatDateLabel(workout.date);
   const monthYear = formatMonthYear(workout.date);
   const workoutName = (workout as any).name ?? "Workout";
-  const exerciseEntries = Object.entries(grouped);
 
   const handleCardTap = () =>
     navigate(`/history/${workout.id}`, { state: { workout } });
@@ -713,17 +728,19 @@ export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
       style={{ fontFamily: "var(--font-inter)", color: "var(--foreground)" }}
     >
       {/* Month + count header */}
-      <div className="flex justify-between items-baseline mb-3">
-        <span className="text-sm font-bold" style={{ letterSpacing: "-0.02em" }}>
-          {monthYear}
-        </span>
-        <span
-          className="text-xs font-semibold"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          1 Workout
-        </span>
-      </div>
+      {showDateHeader && (
+        <div className="flex justify-between items-baseline mb-3">
+          <span className="text-sm font-bold" style={{ letterSpacing: "-0.02em" }}>
+            {monthYear}
+          </span>
+          <span
+            className="text-xs font-semibold"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            {totalWorkouts} {totalWorkouts === 1 ? "Workout" : "Workouts"}
+          </span>
+        </div>
+      )}
 
       {/* Card wrapper — overflow:visible so dropdown isn't clipped */}
       <div
@@ -1006,12 +1023,14 @@ export function HistoryDetails({ workout, onMenu }: HistoryDetailsProps) {
       </div>
 
       {/* Tap hint */}
-      <p
-        className="text-center mt-3 text-xs"
-        style={{ color: "var(--muted-foreground)", opacity: 0.6 }}
-      >
-        Tap to view full details
-      </p>
+      {showTapHint && (
+        <p
+          className="text-center mt-3 text-xs"
+          style={{ color: "var(--muted-foreground)", opacity: 0.6 }}
+        >
+          Tap to view full details
+        </p>
+      )}
     </div>
   );
 }
@@ -1047,7 +1066,7 @@ export default function History() {
     sessionStorage.setItem("history_selected_date", today);
     return today;
   });
-  const [activeWorkout, setActiveWorkout] = useState<LocalWorkout | null>(null);
+  const [activeWorkouts, setActiveWorkouts] = useState<LocalWorkout[]>([]);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [retroStartTime, setRetroStartTime] = useState("10:00");
   const [retroEndTime, setRetroEndTime] = useState("11:00");
@@ -1085,11 +1104,21 @@ export default function History() {
 
     const map: Record<string, DayMeta> = {};
     workouts.forEach((w) => {
-      map[w.date] = {
-        workout: w,
-        hasWorkout: w.completed === 1 && w.note !== "REST_DAY",
-        isRestDay: w.note === "REST_DAY",
-      };
+      const dateStr = w.date;
+      if (!map[dateStr]) {
+        map[dateStr] = {
+          workouts: [],
+          hasWorkout: false,
+          isRestDay: false,
+        };
+      }
+      map[dateStr].workouts.push(w);
+      if (w.completed === 1 && w.note !== "REST_DAY") {
+        map[dateStr].hasWorkout = true;
+      }
+      if (w.note === "REST_DAY") {
+        map[dateStr].isRestDay = true;
+      }
     });
     return map;
   }, [viewDate]);
@@ -1097,7 +1126,7 @@ export default function History() {
   useEffect(() => {
     if (workoutData) {
       const dayMeta = workoutData[selectedDateStr];
-      setActiveWorkout(dayMeta?.workout ?? null);
+      setActiveWorkouts(dayMeta?.workouts ?? []);
     }
   }, [workoutData, selectedDateStr]);
 
@@ -1119,7 +1148,8 @@ export default function History() {
       const meta = workoutData[dateStr];
 
       if (meta?.hasWorkout) {
-        workouts++;
+        const completedCount = meta.workouts.filter((w) => w.completed === 1 && w.note !== "REST_DAY").length;
+        workouts += completedCount;
       } else if (meta?.isRestDay) {
         rests++;
       } else if (dateStr < todayStr && dateStr >= startLimitStr) {
@@ -1130,14 +1160,15 @@ export default function History() {
     return { workoutCount: workouts, restCount: rests, missedCount: missed };
   }, [workoutData, viewDate, profileCreatedDateStr]);
 
-  function handleSelectDate(date: string, workout?: LocalWorkout) {
+  function handleSelectDate(date: string, workouts?: LocalWorkout[]) {
     setSelectedDateStr(date);
     sessionStorage.setItem("history_selected_date", date);
-    setActiveWorkout(workout ?? null);
+    setActiveWorkouts(workouts ?? []);
   }
 
-  const isRestDay = activeWorkout?.note === "REST_DAY";
-  const hasWorkout = activeWorkout && !isRestDay;
+  const isRestDay = activeWorkouts.some((w) => w.note === "REST_DAY");
+  const completedWorkouts = activeWorkouts.filter((w) => w.completed === 1 && w.note !== "REST_DAY");
+  const hasWorkout = completedWorkouts.length > 0;
 
   const defaultRetroStart = "10:00";
   const defaultRetroEnd = "11:00";
@@ -1202,14 +1233,14 @@ export default function History() {
 
       {/* ── Below-calendar panel ── */}
       <div
-        className="mt-5 mb-4 rounded-2xl p-2"
+        className="mt-5 mb-4 rounded-2xl p-2 space-y-4"
         style={{
           background: "var(--card)",
           border: "1px solid var(--border)",
         }}
       >
         {/* ── No workout ── */}
-        {!activeWorkout && (
+        {activeWorkouts.length === 0 && (
           <NoWorkoutState
             dateStr={selectedDateStr}
             onMarkRest={async () => {
@@ -1224,8 +1255,17 @@ export default function History() {
         {/* ── Rest day ── */}
         {isRestDay && <RestDayState dateStr={selectedDateStr} />}
 
-        {/* ── Workout card ── */}
-        {hasWorkout && <HistoryDetails workout={activeWorkout} />}
+        {/* ── Workout cards ── */}
+        {hasWorkout &&
+          completedWorkouts.map((workout, idx) => (
+            <HistoryDetails
+              key={workout.id}
+              workout={workout}
+              showDateHeader={idx === 0}
+              totalWorkouts={completedWorkouts.length}
+              showTapHint={idx === completedWorkouts.length - 1}
+            />
+          ))}
       </div>
 
       {/* ── Beautiful Glassmorphic Time Selector Modal ── */}

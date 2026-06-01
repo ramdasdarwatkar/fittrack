@@ -25,7 +25,11 @@ export const GoalService = {
     if (toDelete.length > 0) {
       const ids = toDelete.map((g) => g.id);
       const { error } = await supabase.from("goals").delete().in("id", ids);
-      if (!error) await db.goals.bulkDelete(ids);
+      if (!error) {
+        await db.goals.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
 
     // 2. Handle Upserts
@@ -42,6 +46,8 @@ export const GoalService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

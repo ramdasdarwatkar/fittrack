@@ -81,7 +81,11 @@ export const PersonalRecordsService = {
         .from("personal_records")
         .delete()
         .in("id", ids);
-      if (!error) await db.personalRecords.bulkDelete(ids);
+      if (!error) {
+        await db.personalRecords.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
 
     if (toUpsert.length > 0) {
@@ -97,6 +101,8 @@ export const PersonalRecordsService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

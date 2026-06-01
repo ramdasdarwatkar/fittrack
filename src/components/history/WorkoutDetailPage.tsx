@@ -286,11 +286,12 @@ export function WorkoutDetailPage() {
 
   const sets = useLiveQuery(async () => {
     if (!workout?.id) return null;
-    return db.sets
+    const rawSets = await db.sets
       .where("workout_id")
       .equals(workout.id)
       .filter((s) => s.is_deleted === 0)
       .toArray();
+    return rawSets.sort((a, b) => Number(a.set_number) - Number(b.set_number));
   }, [workout?.id]);
 
   const exerciseMap = useLiveQuery(async () => {
@@ -448,19 +449,25 @@ export function WorkoutDetailPage() {
         </div>
 
         {/* Exercise tables */}
-        {Object.entries(grouped).map(([exId, exSets]) => {
-          const ex = exerciseMap[exId];
-          const sorted = [...exSets].sort(
-            (a, b) => (a.set_number ?? 0) - (b.set_number ?? 0),
-          );
-          return (
-            <ExerciseTable
-              key={exId}
-              exerciseName={ex?.name ?? exId}
-              sets={sorted}
-            />
-          );
-        })}
+        {Object.entries(grouped)
+          .sort((a, b) => {
+            const minA = Number(a[1][0]?.set_number ?? 0);
+            const minB = Number(b[1][0]?.set_number ?? 0);
+            return minA - minB;
+          })
+          .map(([exId, exSets]) => {
+            const ex = exerciseMap[exId];
+            const sorted = [...exSets].sort(
+              (a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0),
+            );
+            return (
+              <ExerciseTable
+                key={exId}
+                exerciseName={ex?.name ?? exId}
+                sets={sorted}
+              />
+            );
+          })}
 
         {/* Volume per muscle group */}
         {sortedMuscles.length > 0 && (

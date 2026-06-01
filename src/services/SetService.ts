@@ -134,20 +134,29 @@ export const WorkoutSetService = {
     const { toDelete, toUpsert } = await SyncUtils.getPendingChanges("sets");
     if (toDelete.length > 0) {
       const ids = toDelete.map((s) => s.id);
-      await supabase.from("sets").delete().in("id", ids);
-      await db.sets.bulkDelete(ids);
+      const { error } = await supabase.from("sets").delete().in("id", ids);
+      if (!error) {
+        await db.sets.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
         ({ is_dirty: _d, is_deleted: _del, completed: _c, ...rest }) => rest,
       );
-      await supabase.from("sets").upsert(payload);
-      await db.sets.bulkUpdate(
-        toUpsert.map((s) => ({
-          key: s.id,
-          changes: { is_dirty: 0, is_deleted: 0 },
-        })),
-      );
+      const { error } = await supabase.from("sets").upsert(payload);
+      if (!error) {
+        await db.sets.bulkUpdate(
+          toUpsert.map((s) => ({
+            key: s.id,
+            changes: { is_dirty: 0, is_deleted: 0 },
+          })),
+        );
+      } else {
+        console.error("[Sync] Failed to push sets to Supabase:", error.message);
+        throw new Error(error.message);
+      }
     }
   },
 };

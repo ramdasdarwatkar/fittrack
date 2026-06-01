@@ -136,7 +136,11 @@ export const RoutineService = {
     if (routineChanges.toDelete.length > 0) {
       const ids = routineChanges.toDelete.map((r) => r.id);
       const { error } = await supabase.from("routines").delete().in("id", ids);
-      if (!error) await db.routines.bulkDelete(ids);
+      if (!error) {
+        await db.routines.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
     if (routineChanges.toUpsert.length > 0) {
       const payload = routineChanges.toUpsert.map(
@@ -150,6 +154,8 @@ export const RoutineService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
 
@@ -163,8 +169,11 @@ export const RoutineService = {
           .delete()
           .eq("routine_id", row.routine_id)
           .eq("exercise_id", row.exercise_id);
-        if (!error)
+        if (!error) {
           await db.routineExercises.delete([row.routine_id, row.exercise_id]);
+        } else {
+          throw new Error(error.message);
+        }
       }
     }
     if (relationChanges.toUpsert.length > 0) {
@@ -181,6 +190,8 @@ export const RoutineService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

@@ -26,6 +26,7 @@ import {
   Sparkles,
   TrendingUp,
   Trophy,
+  Zap,
 } from "lucide-react";
 import { db } from "@/db";
 import { supabase } from "@/lib/supabase";
@@ -120,6 +121,86 @@ export default function Dashboard() {
 
   const stepsGoal = 8000;
   const waterGoal = 2500;
+
+  // Query to get active muscle groups trained this week for the anatomy visualization
+  const selectedMusclesThisWeek = useLiveQuery(
+    async () => {
+      if (!userId) return [];
+
+      // 1. Get start of this week (Monday) in YYYY-MM-DD
+      const startOfWeekDate = new Date();
+      const day = startOfWeekDate.getDay();
+      // Adjust diff so Monday is start of week
+      const diff = startOfWeekDate.getDate() - day + (day === 0 ? -6 : 1);
+      startOfWeekDate.setDate(diff);
+      startOfWeekDate.setHours(0, 0, 0, 0);
+      const startOfWeekStr = startOfWeekDate.toISOString().split("T")[0];
+
+      // 2. Query workouts for this week
+      const weeklyWorkouts = await db.workouts
+        .where("user_id")
+        .equals(userId)
+        .filter((w) => w.completed === 1 && w.is_deleted === 0 && w.date >= startOfWeekStr)
+        .toArray();
+
+      if (weeklyWorkouts.length === 0) return [];
+
+      const workoutIds = weeklyWorkouts.map((w) => w.id);
+
+      // 3. Query completed sets for these workouts
+      const sets = await db.sets
+        .where("workout_id")
+        .anyOf(workoutIds)
+        .filter((s) => s.is_deleted === 0)
+        .toArray();
+
+      if (sets.length === 0) return [];
+
+      const exerciseIds = Array.from(new Set(sets.map((s) => s.exercise_id).filter(Boolean)));
+
+      if (exerciseIds.length === 0) return [];
+
+      // 4. Query exercises to get muscle_ids
+      const exercises = (await db.exercises.bulkGet(exerciseIds)).filter((e): e is NonNullable<typeof e> => !!e && e.is_deleted === 0);
+
+      const muscleIds = Array.from(new Set(exercises.map((e) => e.muscle_id).filter(Boolean))) as number[];
+
+      if (muscleIds.length === 0) return [];
+
+      // 5. Query muscles to get muscle_map_text
+      const muscles = (await db.muscles.bulkGet(muscleIds)).filter(Boolean);
+
+      const mapTexts = muscles
+        .map((m) => m.muscle_map_text)
+        .filter((text): text is string => typeof text === "string" && text.trim().length > 0);
+
+      console.log("mapTexts", mapTexts);
+      // Return unique map texts as MuscleGroup[]
+      return Array.from(new Set(mapTexts)) as any[];
+    },
+    [userId]
+  ) || [];
+
+  // Query to get total XP earned this month
+  const monthlyXp = useLiveQuery(
+    async () => {
+      if (!userId) return 0;
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      const logs = await db.xpLog
+        .where("user_id")
+        .equals(userId)
+        .filter((log) => log.is_deleted === 0 && log.date !== null && log.date >= startOfMonth)
+        .toArray();
+
+      return logs.reduce((sum, log) => sum + (log.delta || 0), 0);
+    },
+    [userId]
+  ) || 0;
+
+  const monthlyXpTarget = 300;
+  const monthlyXpPercent = Math.min(100, Math.round((monthlyXp / monthlyXpTarget) * 100));
 
   // Log steps using real DB StepsService
   const handleSaveSteps = async (count: number) => {
@@ -551,97 +632,146 @@ export default function Dashboard() {
           </button>
         </header>
 
-        {/* ── ROW 1: Workout Goals & Steps HUD (2-Column Grid) ── */}
-        <div className="grid grid-cols-2 gap-4">
-
-          {/* LEFT COLUMN: Goals Concentric Apple Progress Rings */}
+        {/* ── ROW 1: Anatomy Fatigue Map (Moved to Top) ── */}
+        <section
+          className="rounded-3xl p-4 flex flex-col items-center justify-center relative border overflow-hidden"
+          style={{
+            background: "var(--card)",
+            borderColor: "var(--border)",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
+            minHeight: "420px",
+          }}
+        >
+          {/* Subtle neon corner glows */}
           <div
-            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden"
+            className="absolute -bottom-16 -left-16 w-32 h-32 rounded-full blur-[48px] pointer-events-none opacity-20"
+            style={{ background: "var(--primary)" }}
+          />
+
+          <div className="absolute top-4 left-4 z-10">
+            <h3
+              className="font-black text-xs uppercase tracking-tight flex items-center gap-1.5"
+              style={{ color: "var(--foreground)" }}
+            >
+              <Sparkle size={10} style={{ color: "var(--primary)" }} />
+              MUSCLES FATIGUE MAP
+            </h3>
+          </div>
+
+          <div
+            className="w-full flex-1 pt-6 flex items-center justify-center"
+            style={{ filter: "drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45))" }}
+          >
+            <HumanAnatomy
+              gender={profile?.gender || "female"}
+              backgroundColor="var(--background)"
+              defaultMuscleColor="rgb(80,80,84)"
+              primaryHighlightColor="var(--primary)"
+              primaryOpacity={0.85}
+              selectedPrimaryMuscleGroups={selectedMusclesThisWeek}
+            />
+          </div>
+
+          {/* Badges List below SVG */}
+          {selectedMusclesThisWeek.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 justify-center mt-4 w-full px-4 overflow-y-auto no-scrollbar" style={{ maxHeight: "80px" }}>
+              {selectedMusclesThisWeek.map((muscle) => (
+                <span
+                  key={muscle}
+                  className="inline-flex items-center text-[9px] font-black uppercase px-2.5 py-1 rounded-full border transition-all"
+                  style={{
+                    background: "color-mix(in srgb, var(--primary) 10%, var(--background))",
+                    borderColor: "color-mix(in srgb, var(--primary) 30%, var(--border))",
+                    color: "var(--primary)",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {muscle}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-[9px] font-black uppercase text-muted-foreground mt-4 tracking-wider">
+              No muscles trained yet this week
+            </p>
+          )}
+        </section>
+
+        {/* ── ROW 2: Start Workout & Start Cardio side-by-side stylish CTAs ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Stylish Start Workout Card */}
+          <div
+            onClick={() => navigate(activeSession ? "/workout" : "/workout?mode=live")}
+            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden cursor-pointer transition-all active:scale-[0.98] group"
             style={{
-              background: "color-mix(in srgb, var(--card) 70%, transparent)",
-              backdropFilter: "blur(12px)",
-              borderColor: "var(--border)",
+              background: activeSession
+                ? "linear-gradient(135deg, color-mix(in srgb, var(--warning) 12%, var(--card)), var(--card))"
+                : "linear-gradient(135deg, color-mix(in srgb, var(--primary) 12%, var(--card)), var(--card))",
+              borderColor: activeSession ? "var(--warning)" : "var(--border)",
               boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+              minHeight: "115px",
             }}
           >
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--muted-foreground)" }}>
-                  Workout Goals
-                </p>
-                <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
-                  Activity Rings
-                </h3>
+            {/* Ambient Light Ray */}
+            <div
+              className="absolute -top-10 -right-10 w-20 h-20 rounded-full blur-[24px] pointer-events-none opacity-20 transition-all duration-500 group-hover:scale-125"
+              style={{ background: activeSession ? "var(--warning)" : "var(--primary)" }}
+            />
+
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: activeSession ? "color-mix(in srgb, var(--warning) 12%, transparent)" : "color-mix(in srgb, var(--primary) 12%, transparent)" }}>
+                <Dumbbell size={15} className={activeSession ? "text-warning animate-bounce" : "text-primary"} />
               </div>
-              <Trophy size={14} style={{ color: "var(--warning)" }} />
+              <span className={`w-2 h-2 rounded-full ${activeSession ? "bg-warning animate-ping" : "bg-primary animate-pulse"}`} />
             </div>
 
-            {/* Apple Progress Rings Visualizer */}
-            <div className="flex items-center justify-center py-2 relative">
-              <svg width="105" height="105" viewBox="0 0 100 100" className="transform -rotate-90">
-                {/* Background tracks */}
-                <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="8" opacity="0.12" />
-                <circle cx="50" cy="50" r="28" fill="transparent" stroke="var(--border)" strokeWidth="8" opacity="0.12" />
-
-                {/* Monthly Progress (Outer Ring) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="transparent"
-                  stroke="#ff2d55"
-                  strokeWidth="8"
-                  strokeDasharray="251.3"
-                  strokeDashoffset={251.3 - (251.3 * Math.min(100, monthlyWorkoutPercent)) / 100}
-                  strokeLinecap="round"
-                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
-                />
-
-                {/* Weekly Progress (Inner Ring) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="28"
-                  fill="transparent"
-                  stroke="#00d2ff"
-                  strokeWidth="8"
-                  strokeDasharray="175.9"
-                  strokeDashoffset={175.9 - (175.9 * Math.min(100, weeklyWorkoutPercent)) / 100}
-                  strokeLinecap="round"
-                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
-                />
-              </svg>
-
-              {/* Central Flame Icon for style */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Flame size={14} className="text-warning fill-current" />
-              </div>
-            </div>
-
-            {/* Mini HUD indicators */}
-            <div className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground border-t pt-2 mt-1" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#ff2d55]" />
-                  Month
-                </span>
-                <span className="text-foreground font-black tabular-nums">
-                  {monthlyWorkoutsCount}/{monthlyWorkoutTarget}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#00d2ff]" />
-                  Week
-                </span>
-                <span className="text-foreground font-black tabular-nums">
-                  {weeklyWorkoutsCount}/{weeklyWorkoutTarget}
-                </span>
-              </div>
+            <div>
+              <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground mb-0.5">
+                {activeSession ? "Workout in progress" : "Strength session"}
+              </p>
+              <h4 className="font-black text-sm uppercase tracking-tight text-foreground leading-none">
+                {activeSession ? "Resume Workout" : "Start Workout"}
+              </h4>
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Steps Tracker Card with controls */}
+          {/* Stylish Start Cardio Card */}
+          <div
+            onClick={() => navigate("/cardio-log")}
+            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden cursor-pointer transition-all active:scale-[0.98] group"
+            style={{
+              background: "linear-gradient(135deg, color-mix(in srgb, #ff453a 12%, var(--card)), var(--card))",
+              borderColor: "var(--border)",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+              minHeight: "115px",
+            }}
+          >
+            {/* Ambient Light Ray */}
+            <div
+              className="absolute -top-10 -right-10 w-20 h-20 rounded-full blur-[24px] pointer-events-none opacity-20 transition-all duration-500 group-hover:scale-125"
+              style={{ background: "#ff453a" }}
+            />
+
+            <div className="flex justify-between items-start">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "color-mix(in srgb, #ff453a 12%, transparent)" }}>
+                <Flame size={15} className="text-[#ff453a] animate-pulse" />
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[7px] font-black uppercase tracking-wider text-muted-foreground mb-0.5">
+                Cardio reward log
+              </p>
+              <h4 className="font-black text-sm uppercase tracking-tight text-foreground leading-none">
+                Start Cardio
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        {/* ── ROW 3: Daily Steps Ring & Water Intake Progress Ring side-by-side ── */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Daily Steps Ring Card */}
           <div
             className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden"
             style={{
@@ -659,7 +789,7 @@ export default function Dashboard() {
                     Daily Steps
                   </p>
                   <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
-                    Footsteps HUD
+                    Steps Ring
                   </h3>
                 </div>
               </div>
@@ -676,58 +806,37 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Apple Progress Ring Visualizer for Steps */}
-            <div className="flex items-center justify-center py-2 relative">
-              <svg width="105" height="105" viewBox="0 0 100 100" className="transform -rotate-90">
-                {/* Background track */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="40"
-                  fill="transparent"
-                  stroke="var(--border)"
-                  strokeWidth="8"
-                  opacity="0.12"
-                />
-
-                {/* Steps Progress (Outer Ring style matching outer ring height) */}
+            {/* Circular Progress Ring */}
+            <div className="flex items-center justify-center py-3 relative">
+              <svg width="100" height="100" viewBox="0 0 100 100" className="transform -rotate-90">
+                {/* Background Track */}
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="7" opacity="0.12" />
+                {/* Progress Ring */}
                 <circle
                   cx="50"
                   cy="50"
                   r="40"
                   fill="transparent"
                   stroke="var(--primary)"
-                  strokeWidth="8"
+                  strokeWidth="7"
                   strokeDasharray="251.3"
                   strokeDashoffset={251.3 - (251.3 * Math.min(100, (todaySteps / stepsGoal) * 100)) / 100}
                   strokeLinecap="round"
                   style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
                 />
               </svg>
-
-              {/* Central Steps Icon at center */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <Footprints size={18} className="text-primary animate-pulse" />
-              </div>
-            </div>
-
-            {/* Mini HUD indicators matching left card height */}
-            <div className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground border-t pt-2 mt-1" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center justify-between">
-                <span>Steps</span>
-                <span className="text-foreground font-black tabular-nums">
-                  {todaySteps.toLocaleString()}
+              {/* Central Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="font-black text-[11px] text-foreground leading-none mb-0.5">
+                  {Math.round((todaySteps / stepsGoal) * 100)}%
                 </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Goal</span>
-                <span className="text-foreground font-black tabular-nums">
-                  {stepsGoal.toLocaleString()} ({Math.round((todaySteps / stepsGoal) * 100)}%)
+                <span className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">
+                  {todaySteps >= 1000 ? `${(todaySteps / 1000).toFixed(1)}k` : todaySteps}
                 </span>
               </div>
             </div>
 
-            {/* Input toggle or rapid add/subtract controllers */}
+            {/* Rapid Add/Subtract Steps controls */}
             <div className="mt-1 border-t pt-2" style={{ borderColor: "var(--border)" }}>
               <AnimatePresence mode="wait">
                 {isEditingSteps ? (
@@ -766,17 +875,17 @@ export default function Dashboard() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex items-center justify-between gap-1 w-full"
+                    className="flex items-center justify-between gap-1.5 w-full"
                   >
                     <button
                       onClick={() => handleQuickAddSteps(-1000)}
-                      className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase bg-secondary text-foreground active:scale-95 border transition-all cursor-pointer text-center font-bold"
+                      className="flex-1 py-1 rounded-lg text-[9px] font-black bg-secondary text-foreground active:scale-95 border transition-all cursor-pointer text-center font-bold"
                     >
                       -1K
                     </button>
                     <button
                       onClick={() => handleQuickAddSteps(1000)}
-                      className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase bg-primary text-primary-foreground active:scale-95 transition-all cursor-pointer text-center font-bold"
+                      className="flex-1 py-1 rounded-lg text-[9px] font-black bg-primary text-primary-foreground active:scale-95 transition-all cursor-pointer text-center font-bold"
                     >
                       +1K
                     </button>
@@ -785,12 +894,85 @@ export default function Dashboard() {
               </AnimatePresence>
             </div>
           </div>
+
+          {/* Water Intake Ring Card */}
+          <div
+            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden"
+            style={{
+              background: "color-mix(in srgb, var(--card) 70%, transparent)",
+              backdropFilter: "blur(12px)",
+              borderColor: "var(--border)",
+              boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+            }}
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex gap-1.5 items-center">
+                <Droplet size={14} style={{ color: "#00d2ff" }} />
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--muted-foreground)" }}>
+                    Water Intake
+                  </p>
+                  <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
+                    Hydration Ring
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Circular Progress Ring */}
+            <div className="flex items-center justify-center py-3 relative">
+              <svg width="100" height="100" viewBox="0 0 100 100" className="transform -rotate-90">
+                {/* Background Track */}
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="7" opacity="0.12" />
+                {/* Progress Ring */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  fill="transparent"
+                  stroke="#00d2ff"
+                  strokeWidth="7"
+                  strokeDasharray="251.3"
+                  strokeDashoffset={251.3 - (251.3 * Math.min(100, (todayWater / waterGoal) * 100)) / 100}
+                  strokeLinecap="round"
+                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                />
+              </svg>
+              {/* Central Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="font-black text-[11px] text-foreground leading-none mb-0.5">
+                  {Math.round((todayWater / waterGoal) * 100)}%
+                </span>
+                <span className="text-[7px] font-black uppercase tracking-wider text-muted-foreground">
+                  {todayWater} ml
+                </span>
+              </div>
+            </div>
+
+            {/* Rapid Add/Subtract Water controls */}
+            <div className="mt-1 border-t pt-2" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-1.5 w-full">
+                <button
+                  onClick={() => handleQuickAddWater(-250)}
+                  disabled={todayWater <= 0}
+                  className="flex-1 py-1 rounded-lg text-[9px] font-black bg-secondary text-foreground disabled:opacity-40 disabled:pointer-events-none active:scale-95 border transition-all cursor-pointer text-center font-bold"
+                >
+                  -250ml
+                </button>
+                <button
+                  onClick={() => handleQuickAddWater(250)}
+                  className="flex-1 py-1 rounded-lg text-[9px] font-black bg-[#00d2ff] text-white active:scale-95 transition-all cursor-pointer text-center font-bold"
+                >
+                  +250ml
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* ── ROW 2: Hydration & Workout CTA Grid (2 Columns) ── */}
+        {/* ── ROW 4: Concentric Activity Rings & This Month's XP Ring side-by-side ── */}
         <div className="grid grid-cols-2 gap-4">
-
-          {/* LEFT COLUMN: Water Bottle filling SVG card */}
+          {/* Workout Goals Concentric Activity Rings */}
           <div
             className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden"
             style={{
@@ -801,184 +983,154 @@ export default function Dashboard() {
             }}
           >
             <div className="flex justify-between items-center">
-              <div className="flex gap-1.5 items-center">
-                <Droplet size={14} style={{ color: "#00d2ff" }} />
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--muted-foreground)" }}>
-                    Hydration Level
-                  </p>
-                  <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
-                    Water Intake
-                  </h3>
-                </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--muted-foreground)" }}>
+                  Workout Goals
+                </p>
+                <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
+                  Activity Rings
+                </h3>
+              </div>
+              <Trophy size={14} style={{ color: "var(--warning)" }} />
+            </div>
+
+            {/* Apple Progress Rings Visualizer */}
+            <div className="flex items-center justify-center py-2 relative">
+              <svg width="100" height="100" viewBox="0 0 100 100" className="transform -rotate-90">
+                {/* Background tracks */}
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="7" opacity="0.12" />
+                <circle cx="50" cy="50" r="28" fill="transparent" stroke="var(--border)" strokeWidth="7" opacity="0.12" />
+
+                {/* Monthly Progress (Outer Ring) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  fill="transparent"
+                  stroke="#ff2d55"
+                  strokeWidth="7"
+                  strokeDasharray="251.3"
+                  strokeDashoffset={251.3 - (251.3 * Math.min(100, monthlyWorkoutPercent)) / 100}
+                  strokeLinecap="round"
+                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                />
+
+                {/* Weekly Progress (Inner Ring) */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="28"
+                  fill="transparent"
+                  stroke="#00d2ff"
+                  strokeWidth="7"
+                  strokeDasharray="175.9"
+                  strokeDashoffset={175.9 - (175.9 * Math.min(100, weeklyWorkoutPercent)) / 100}
+                  strokeLinecap="round"
+                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                />
+              </svg>
+
+              {/* Central Flame Icon for style */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Flame size={14} className="text-warning fill-current" />
               </div>
             </div>
 
-            {/* Dynamic Water Bottle SVG visualizer using clipping masks */}
-            <div className="flex items-center justify-center py-2">
-              <div className="relative w-16 h-28 shrink-0 flex items-center justify-center">
-                {/* Background outline */}
-                <img
-                  src={`${BASE_URL}svg/water_bottle.svg`}
-                  className="absolute inset-0 w-full h-full object-contain opacity-25"
-                  alt="Bottle Background"
-                />
-
-                {/* Liquid filling using mask */}
-                <div
-                  className="absolute inset-0 w-full h-full"
-                  style={{
-                    maskImage: `url('${BASE_URL}svg/water_bottle.svg')`,
-                    WebkitMaskImage: `url('${BASE_URL}svg/water_bottle.svg')`,
-                    maskSize: "contain",
-                    WebkitMaskSize: "contain",
-                    maskRepeat: "no-repeat",
-                    WebkitMaskRepeat: "no-repeat",
-                    maskPosition: "center",
-                    WebkitMaskPosition: "center",
-                  }}
-                >
-                  <div
-                    className="absolute bottom-0 w-full transition-all duration-500 ease-out"
-                    style={{
-                      height: `${bottlePercent}%`,
-                      background: "linear-gradient(180deg, #22BED5 0%, #1A85D2 100%)",
-                    }}
-                  />
-                </div>
-
-                {/* Foreground outline & reflections */}
-                <img
-                  src={`${BASE_URL}svg/water_bottle.svg`}
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none mix-blend-multiply dark:mix-blend-screen"
-                  alt="Bottle Glass"
-                />
-
-                {/* Percentage label floating */}
-                <span className="absolute inset-0 flex items-center justify-center font-black text-[10px] tabular-nums text-foreground filter drop-shadow-[0_1px_2px_rgba(255,255,255,0.7)] dark:drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-                  {Math.round(bottlePercent)}%
+            {/* Mini HUD indicators */}
+            <div className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground border-t pt-2 mt-1" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#ff2d55]" />
+                  Month
+                </span>
+                <span className="text-foreground font-black tabular-nums">
+                  {monthlyWorkoutsCount}/{monthlyWorkoutTarget}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00d2ff]" />
+                  Week
+                </span>
+                <span className="text-foreground font-black tabular-nums">
+                  {weeklyWorkoutsCount}/{weeklyWorkoutTarget}
                 </span>
               </div>
             </div>
-
-            {/* Controls to add/subtract water */}
-            <div className="flex items-center gap-1.5 mt-1 border-t pt-2" style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={() => handleQuickAddWater(-250)}
-                disabled={todayWater <= 0}
-                className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase bg-secondary text-foreground disabled:opacity-40 disabled:pointer-events-none active:scale-95 border transition-all cursor-pointer text-center font-bold"
-              >
-                -250ml
-              </button>
-              <button
-                onClick={() => handleQuickAddWater(250)}
-                className="flex-1 py-1.5 rounded-lg text-[9px] font-black uppercase bg-primary text-primary-foreground active:scale-95 transition-all cursor-pointer text-center font-bold"
-              >
-                +250ml
-              </button>
-            </div>
           </div>
 
-          {/* RIGHT COLUMN: Workout Start / Resume CTA Card */}
+          {/* Monthly XP Progress Ring Card */}
           <div
-            onClick={() => navigate(activeSession ? "/workout" : "/workout?mode=live")}
-            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden cursor-pointer transition-all active:scale-[0.98] group"
+            className="rounded-3xl p-4 flex flex-col justify-between border relative overflow-hidden"
             style={{
-              background: activeSession
-                ? "linear-gradient(135deg, color-mix(in srgb, var(--warning) 15%, var(--card)), color-mix(in srgb, var(--warning) 5%, var(--card)))"
-                : "linear-gradient(135deg, color-mix(in srgb, var(--primary) 15%, var(--card)), color-mix(in srgb, var(--primary) 5%, var(--card)))",
-              borderColor: activeSession ? "var(--warning)" : "var(--border)",
+              background: "color-mix(in srgb, var(--card) 70%, transparent)",
+              backdropFilter: "blur(12px)",
+              borderColor: "var(--border)",
               boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
             }}
           >
-            {/* Pulsing indicator */}
-            <div className="absolute top-4 right-4 flex items-center justify-center">
-              <span className={`w-2.5 h-2.5 rounded-full ${activeSession ? "bg-warning animate-ping" : "bg-primary animate-pulse"}`} />
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--muted-foreground)" }}>
+                  Monthly XP
+                </p>
+                <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
+                  XP Ring
+                </h3>
+              </div>
+              <Sparkles size={14} style={{ color: "var(--primary)" }} />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex gap-1.5 items-center">
-                <Dumbbell size={14} style={{ color: activeSession ? "var(--warning)" : "var(--primary)" }} />
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: "var(--muted-foreground)" }}>
-                    Active Training
-                  </p>
-                  <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
-                    {activeSession ? "Live Session" : "Start Session"}
-                  </h3>
-                </div>
+            {/* Monthly XP Progress Ring */}
+            <div className="flex items-center justify-center py-2 relative">
+              <svg width="100" height="100" viewBox="0 0 100 100" className="transform -rotate-90">
+                {/* Background track */}
+                <circle cx="50" cy="50" r="40" fill="transparent" stroke="var(--border)" strokeWidth="7" opacity="0.12" />
+                {/* Progress Ring */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  fill="transparent"
+                  stroke="url(#xp-grad)"
+                  strokeWidth="7"
+                  strokeDasharray="251.3"
+                  strokeDashoffset={251.3 - (251.3 * monthlyXpPercent) / 100}
+                  strokeLinecap="round"
+                  style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)" }}
+                />
+
+                <defs>
+                  <linearGradient id="xp-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="var(--primary)" />
+                    <stop offset="100%" stopColor="#a855f7" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              {/* Central Lightning Bolt Icon */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Zap size={16} className="text-[#a855f7] fill-current animate-pulse" />
               </div>
             </div>
 
-            {/* Central Visual CTA */}
-            <div className="flex flex-col items-center justify-center py-2">
-              <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center border transition-all duration-300 group-hover:scale-105"
-                style={{
-                  background: activeSession
-                    ? "color-mix(in srgb, var(--warning) 12%, transparent)"
-                    : "color-mix(in srgb, var(--primary) 12%, transparent)",
-                  borderColor: activeSession
-                    ? "color-mix(in srgb, var(--warning) 24%, transparent)"
-                    : "color-mix(in srgb, var(--primary) 24%, transparent)",
-                }}
-              >
-                {activeSession ? (
-                  <Play size={20} strokeWidth={2.5} className="text-warning fill-current animate-pulse" />
-                ) : (
-                  <Plus size={20} strokeWidth={3} className="text-primary" />
-                )}
+            {/* Mini HUD indicators */}
+            <div className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground border-t pt-2 mt-1" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <span>Month XP</span>
+                <span className="text-foreground font-black tabular-nums">
+                  {monthlyXp} XP
+                </span>
               </div>
-            </div>
-
-            {/* Status action text */}
-            <div className="text-[9px] font-black uppercase tracking-wider text-right border-t pt-2" style={{ borderColor: "var(--border)" }}>
-              <span style={{ color: activeSession ? "var(--warning)" : "var(--primary)" }}>
-                {activeSession ? "Resume session →" : "Start workout →"}
-              </span>
+              <div className="flex items-center justify-between">
+                <span>Goal</span>
+                <span className="text-foreground font-black tabular-nums">
+                  {monthlyXpTarget} XP ({monthlyXpPercent}%)
+                </span>
+              </div>
             </div>
           </div>
         </div>
-
-        {/* ── ROW 3: Anatomy Fatigue Map visualization (Main Hero) ── */}
-        <section
-          className="rounded-3xl p-4 flex flex-col items-center justify-center relative border overflow-hidden"
-          style={{
-            background: "var(--card)",
-            borderColor: "var(--border)",
-            boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
-            height: "360px",
-          }}
-        >
-          {/* Subtle neon corner glows */}
-          <div
-            className="absolute -bottom-16 -left-16 w-32 h-32 rounded-full blur-[48px] pointer-events-none opacity-20"
-            style={{ background: "var(--primary)" }}
-          />
-
-          <div className="absolute top-4 left-4 z-10">
-            <h3
-              className="font-black text-xs uppercase tracking-tight flex items-center gap-1.5"
-              style={{ color: "var(--foreground)" }}
-            >
-              <Sparkle size={10} style={{ color: "var(--primary)" }} />
-              MUSCLES FATIGUE MAP
-            </h3>
-          </div>
-          <div
-            className="w-full h-full pt-4 flex items-center justify-center"
-            style={{ filter: "drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45))" }}
-          >
-            <HumanAnatomy
-              gender={profile?.gender || "female"}
-              backgroundColor="var(--background)"
-              defaultMuscleColor="rgb(80,80,84)"
-              primaryHighlightColor="var(--primary)"
-              primaryOpacity={0.85}
-              selectedPrimaryMuscleGroups={["chest", "triceps", "frontDelts", "sideDelts"]}
-            />
-          </div>
-        </section>
 
         {/* ── ROW 4: Consistency Radar, Biometric Sparkline & Trophy Rack ── */}
         <div className="space-y-6">
@@ -1129,8 +1281,8 @@ export default function Dashboard() {
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
                 className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${streak > 0
-                    ? "bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_4px_16px_rgba(245,158,11,0.12)]"
-                    : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
+                  ? "bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_4px_16px_rgba(245,158,11,0.12)]"
+                  : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
                   }`}
               >
                 {/* Glowing ring underlay */}
@@ -1152,8 +1304,8 @@ export default function Dashboard() {
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
                 className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${todaySteps >= stepsGoal
-                    ? "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 shadow-[0_4px_16px_rgba(99,102,241,0.12)]"
-                    : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
+                  ? "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 shadow-[0_4px_16px_rgba(99,102,241,0.12)]"
+                  : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
                   }`}
               >
                 {/* Glowing ring underlay */}
@@ -1175,8 +1327,8 @@ export default function Dashboard() {
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
                 className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${todayWater >= waterGoal
-                    ? "bg-cyan-500/10 border-cyan-500/25 text-cyan-400 shadow-[0_4px_16px_rgba(6,182,212,0.12)]"
-                    : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
+                  ? "bg-cyan-500/10 border-cyan-500/25 text-cyan-400 shadow-[0_4px_16px_rgba(6,182,212,0.12)]"
+                  : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
                   }`}
               >
                 {/* Glowing ring underlay */}
@@ -1197,7 +1349,6 @@ export default function Dashboard() {
           </div>
 
         </div>
-
       </div>
     </div>
   );

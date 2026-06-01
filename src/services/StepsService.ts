@@ -45,11 +45,12 @@ export const StepsService = {
 
     if (toDelete.length > 0) {
       for (const row of toDelete) {
-        await supabase
+        const { error } = await supabase
           .from("steps")
           .delete()
           .eq("user_id", row.user_id)
           .eq("date", row.date);
+        if (error) throw new Error(error.message);
       }
       const keys = toDelete.map((row) => [row.user_id, row.date]);
       await db.steps.bulkDelete(keys);
@@ -67,6 +68,8 @@ export const StepsService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           }))
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

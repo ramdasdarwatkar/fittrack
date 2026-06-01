@@ -61,7 +61,11 @@ export const ExerciseService = {
     if (toDelete.length > 0) {
       const ids = toDelete.map((e) => e.id);
       const { error } = await supabase.from("exercises").delete().in("id", ids);
-      if (!error) await db.exercises.bulkDelete(ids);
+      if (!error) {
+        await db.exercises.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
 
     if (toUpsert.length > 0) {
@@ -76,6 +80,8 @@ export const ExerciseService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

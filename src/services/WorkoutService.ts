@@ -137,7 +137,11 @@ export const WorkoutService = {
     if (toDelete.length > 0) {
       const ids = toDelete.map((w) => w.id);
       const { error } = await supabase.from("workouts").delete().in("id", ids);
-      if (!error) await db.workouts.bulkDelete(ids);
+      if (!error) {
+        await db.workouts.bulkDelete(ids);
+      } else {
+        throw new Error(error.message);
+      }
     }
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
@@ -151,6 +155,8 @@ export const WorkoutService = {
             changes: { is_dirty: 0, is_deleted: 0 },
           })),
         );
+      } else {
+        throw new Error(error.message);
       }
     }
   },

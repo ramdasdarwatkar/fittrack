@@ -13,6 +13,7 @@ import History from "@/pages/History";
 import { WorkoutDetailPage } from "@/components/history/WorkoutDetailPage";
 import Settings from "@/pages/Settings";
 import Trends from "@/pages/Trends";
+import CardioLog from "@/pages/CardioLog";
 import AppearanceSettings from "@/components/settings/AppearanceSettings";
 import BodyMetricsSettings from "@/components/settings/BodyMetricsSettings";
 import SyncSettings from "@/components/settings/SyncSettings";
@@ -65,6 +66,17 @@ const router = createBrowserRouter(
               path: "routine/:id",
               element: <RoutineForm />,
               handle: { title: "Edit Routine Flow" },
+            },
+          ],
+        },
+        {
+          path: "/cardio-log",
+          element: <SubPageLayout />,
+          children: [
+            {
+              index: true,
+              element: <CardioLog />,
+              handle: { title: "Log Cardio" },
             },
           ],
         },
