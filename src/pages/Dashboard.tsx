@@ -195,12 +195,12 @@ export default function Dashboard() {
     [userId]
   );
   const weeklyWorkoutTarget = useMemo(() => {
-    const goal = goalsList?.find((g) => g.goaltype === "WORKOUT_DAYS" && g.name === "week");
+    const goal = goalsList?.find((g) => g.goaltype === "WORKOUT_DAYS" && g.name === "Weekly Frequency");
     return goal?.target ?? 4; // Default to 4 workouts/week
   }, [goalsList]);
 
   const monthlyWorkoutTarget = useMemo(() => {
-    const goal = goalsList?.find((g) => g.goaltype === "WORKOUT_DAYS" && g.name === "month");
+    const goal = goalsList?.find((g) => g.goaltype === "WORKOUT_DAYS" && g.name === "Monthly Frequency");
     return goal?.target ?? (weeklyWorkoutTarget * 4); // Default to 16 workouts/month
   }, [goalsList, weeklyWorkoutTarget]);
 
@@ -982,7 +982,7 @@ export default function Dashboard() {
 
         {/* ── ROW 4: Consistency Radar, Biometric Sparkline & Trophy Rack ── */}
         <div className="space-y-6">
-          
+
 
           {/* Biometric Performance Sparkline Card */}
           <div
@@ -1071,7 +1071,7 @@ export default function Dashboard() {
                 ))}
               </svg>
             </div>
-            
+
             {/* Sparkline HUD Footer */}
             <div className="flex justify-between items-center mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
               <div className="flex items-center gap-1">
@@ -1080,8 +1080,8 @@ export default function Dashboard() {
                   {weightChange < 0
                     ? `Lost ${Math.abs(weightChange).toFixed(1)} kg`
                     : weightChange > 0
-                    ? `Gained +${weightChange.toFixed(1)} kg`
-                    : "No Weight Change"}
+                      ? `Gained +${weightChange.toFixed(1)} kg`
+                      : "No Weight Change"}
                 </span>
               </div>
               <span className="text-[7px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -1124,15 +1124,14 @@ export default function Dashboard() {
 
             {/* Badges Grid (3 Columns) */}
             <div className="grid grid-cols-3 gap-4">
-              
+
               {/* Badge 1: Streak */}
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
-                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${
-                  streak > 0
+                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${streak > 0
                     ? "bg-amber-500/10 border-amber-500/25 text-amber-400 shadow-[0_4px_16px_rgba(245,158,11,0.12)]"
                     : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
-                }`}
+                  }`}
               >
                 {/* Glowing ring underlay */}
                 {streak > 0 && (
@@ -1152,11 +1151,10 @@ export default function Dashboard() {
               {/* Badge 2: Steps */}
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
-                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${
-                  todaySteps >= stepsGoal
+                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${todaySteps >= stepsGoal
                     ? "bg-indigo-500/10 border-indigo-500/25 text-indigo-400 shadow-[0_4px_16px_rgba(99,102,241,0.12)]"
                     : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
-                }`}
+                  }`}
               >
                 {/* Glowing ring underlay */}
                 {todaySteps >= stepsGoal && (
@@ -1176,11 +1174,10 @@ export default function Dashboard() {
               {/* Badge 3: Hydration */}
               <motion.div
                 whileHover={{ scale: 1.04, y: -2 }}
-                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${
-                  todayWater >= waterGoal
+                className={`p-3.5 rounded-2xl flex flex-col items-center text-center border relative overflow-hidden transition-all duration-500 group/badge ${todayWater >= waterGoal
                     ? "bg-cyan-500/10 border-cyan-500/25 text-cyan-400 shadow-[0_4px_16px_rgba(6,182,212,0.12)]"
                     : "bg-secondary/35 border-transparent opacity-40 text-muted-foreground"
-                }`}
+                  }`}
               >
                 {/* Glowing ring underlay */}
                 {todayWater >= waterGoal && (
@@ -1198,7 +1195,7 @@ export default function Dashboard() {
               </motion.div>
             </div>
           </div>
-          
+
         </div>
 
       </div>
