@@ -11,6 +11,7 @@ import { WorkoutSetService } from "./SetService";
 import { PersonalRecordsService } from "./PersonalRecordsService";
 import { StepsService } from "./StepsService";
 import { XpService } from "./XpService";
+import { ExerciseProgressionService } from "./ExerciseProgressionService";
 
 type TableName = keyof Database["public"]["Tables"];
 
@@ -28,6 +29,7 @@ const TABLE_MAP: Record<TableName, string> = {
   personal_records: "personalRecords",
   steps: "steps",
   xp_log: "xpLog",
+  exercise_progression: "exerciseProgressions",
 };
 
 const TABLE_DAYS: Record<TableName, number | null> = {
@@ -44,6 +46,7 @@ const TABLE_DAYS: Record<TableName, number | null> = {
   personal_records: 180,
   steps: 180,
   xp_log: 30,
+  exercise_progression: null,
 };
 
 function getStartDateLimit(days: number | null | undefined): string {
@@ -70,7 +73,11 @@ export const SyncService = {
     try {
       for (const table of Object.keys(TABLE_MAP) as TableName[]) {
         const days = TABLE_DAYS[table];
-        await this.pullTable(table, days);
+        try {
+          await this.pullTable(table, days);
+        } catch (tableError) {
+          console.error(`[Sync] Pull failed for table ${table}:`, tableError);
+        }
       }
     } catch (error) {
       console.error("[Sync] Pull cycle collapsed:", error);
@@ -94,85 +101,120 @@ export const SyncService = {
       }
 
       const timeColumn = "updated_at";
+      let query = supabase.from(supabaseTable).select("*");
+      if (supabaseTable !== "exercise_progression") {
+        query = query.gt(timeColumn, lastTimestamp).order(timeColumn, { ascending: true });
+      }
 
-      const { data, error } = await supabase
-        .from(supabaseTable)
-        .select("*")
-        .gt(timeColumn, lastTimestamp)
-        .order(timeColumn, { ascending: true });
+      const { data, error } = await query;
 
       if (error) {
-        console.error(
-          `[Sync] Server query failed for ${supabaseTable}:`,
-          error.message,
-        );
-        return;
+        throw new Error(error.message);
       }
-      if (!data || data.length === 0) return;
 
-      const sanitized = data.map((row: any) => {
-        const item: any = {
-          ...row,
-          is_dirty: 0,
-          is_deleted: 0,
-        };
-        if (supabaseTable === "workouts" || supabaseTable === "sets") {
-          item.completed = 1;
-        }
-        return item;
-      });
+      if (data && data.length > 0) {
+        const sanitized = data.map((row: Record<string, unknown>) => {
+          const item: Record<string, unknown> = {
+            ...row,
+            is_dirty: 0,
+            is_deleted: 0,
+          };
+          if (supabaseTable === "workouts" || supabaseTable === "sets") {
+            item.completed = 1;
+          }
+          return item;
+        });
 
-      await db.table(dexieTable).bulkPut(sanitized);
+        await db.table(dexieTable).bulkPut(sanitized);
+      }
 
-      const newestAt = data[data.length - 1][timeColumn];
+      const newestAt = (supabaseTable !== "exercise_progression" && data && data.length > 0)
+        ? (data[data.length - 1] as Record<string, any>)[timeColumn]
+        : (meta?.last_pulled_at || new Date().toISOString());
+
       await db.syncMetadata.put({
         table_name: supabaseTable,
         last_pulled_at: newestAt,
+        last_error: null, // Clear error on success
       });
 
-      console.log(`[Sync] Hydrated ${data.length} records into ${dexieTable}`);
-    } catch (localError) {
+      console.log(`[Sync] Hydrated ${data ? data.length : 0} records into ${dexieTable}`);
+    } catch (localError: any) {
       console.error(
-        `[Sync] IndexedDB write failure on ${supabaseTable}:`,
+        `[Sync] Pull failure on ${supabaseTable}:`,
         localError,
       );
+      const errMsg = localError?.message || String(localError);
+      const meta = await db.syncMetadata.get(supabaseTable);
+      await db.syncMetadata.put({
+        table_name: supabaseTable,
+        last_pulled_at: meta?.last_pulled_at || null,
+        last_error: errMsg,
+      });
+      throw localError;
     }
   },
 
   async pushTable(supabaseTable: TableName) {
-    switch (supabaseTable) {
-      case "user_profiles":
-        await ProfileService.push();
-        break;
-      case "body_metrics":
-        await BodyMetricsService.push();
-        break;
-      case "goals":
-        await GoalService.push();
-        break;
-      case "exercises":
-        await ExerciseService.push();
-        break;
-      case "routines":
-        await RoutineService.push();
-        break;
-      case "workouts":
-        await WorkoutService.push();
-        break;
-      case "sets":
-        await WorkoutSetService.push();
-        break;
-      case "personal_records":
-        await PersonalRecordsService.push();
-        break;
-      case "steps":
-        await StepsService.push();
-        break;
-      case "xp_log":
-        await XpService.push();
-        break;
-      default:
-        console.warn(`[Sync] No push service registered for ${supabaseTable}`);
+    try {
+      switch (supabaseTable) {
+        case "user_profiles":
+          await ProfileService.push();
+          break;
+        case "body_metrics":
+          await BodyMetricsService.push();
+          break;
+        case "goals":
+          await GoalService.push();
+          break;
+        case "exercises":
+          await ExerciseService.push();
+          break;
+        case "routines":
+          await RoutineService.push();
+          break;
+        case "workouts":
+          await WorkoutService.push();
+          break;
+        case "sets":
+          await WorkoutSetService.push();
+          break;
+        case "personal_records":
+          await PersonalRecordsService.push();
+          break;
+        case "steps":
+          await StepsService.push();
+          break;
+        case "xp_log":
+          await XpService.push();
+          break;
+        case "exercise_progression":
+          await ExerciseProgressionService.push();
+          break;
+        default:
+          console.warn(`[Sync] No push service registered for ${supabaseTable}`);
+      }
+
+      // On success, clear any push/pull error for this table
+      const meta = await db.syncMetadata.get(supabaseTable);
+      await db.syncMetadata.put({
+        table_name: supabaseTable,
+        last_pulled_at: meta?.last_pulled_at || null,
+        last_error: null, // Clear error on success
+      });
+    } catch (pushError: any) {
+      console.error(
+        `[Sync] Push failure on ${supabaseTable}:`,
+        pushError,
+      );
+      const errMsg = pushError?.message || String(pushError);
+      const meta = await db.syncMetadata.get(supabaseTable);
+      await db.syncMetadata.put({
+        table_name: supabaseTable,
+        last_pulled_at: meta?.last_pulled_at || null,
+        last_error: errMsg,
+      });
+      throw pushError;
     }
   },
 
@@ -294,75 +336,27 @@ export const SyncService = {
       await this.recoverUnsyncedRecords();
 
       // 2. Execute pushes sequentially in topological dependency order
-      // Each is wrapped in try-catch so one table error does not collapse the entire pipeline.
-      console.log("[Sync] Pushing user profiles...");
-      try {
-        await ProfileService.push();
-      } catch (err) {
-        console.error("[Sync] User profiles push failed:", err);
-      }
+      const tablesOrder: TableName[] = [
+        "user_profiles",
+        "body_metrics",
+        "goals",
+        "exercises",
+        "routines",
+        "workouts",
+        "sets",
+        "personal_records",
+        "steps",
+        "xp_log",
+        "exercise_progression",
+      ];
 
-      console.log("[Sync] Pushing body metrics...");
-      try {
-        await BodyMetricsService.push();
-      } catch (err) {
-        console.error("[Sync] Body metrics push failed:", err);
-      }
-
-      console.log("[Sync] Pushing goals...");
-      try {
-        await GoalService.push();
-      } catch (err) {
-        console.error("[Sync] Goals push failed:", err);
-      }
-
-      console.log("[Sync] Pushing exercises...");
-      try {
-        await ExerciseService.push();
-      } catch (err) {
-        console.error("[Sync] Exercises push failed:", err);
-      }
-
-      console.log("[Sync] Pushing routines...");
-      try {
-        await RoutineService.push();
-      } catch (err) {
-        console.error("[Sync] Routines push failed:", err);
-      }
-
-      console.log("[Sync] Pushing workouts...");
-      try {
-        await WorkoutService.push();
-      } catch (err) {
-        console.error("[Sync] Workouts push failed:", err);
-      }
-
-      console.log("[Sync] Pushing sets...");
-      try {
-        await WorkoutSetService.push();
-      } catch (err) {
-        console.error("[Sync] Sets push failed:", err);
-      }
-
-      console.log("[Sync] Pushing personal records...");
-      try {
-        await PersonalRecordsService.push();
-      } catch (err) {
-        console.error("[Sync] Personal records push failed:", err);
-      }
-
-      console.log("[Sync] Pushing steps...");
-      try {
-        await StepsService.push();
-      } catch (err) {
-        console.error("[Sync] Steps push failed:", err);
-      }
-
-      console.log("[Sync] Pushing XP logs...");
-      try {
-        await XpService.push();
-      } catch (err) {
-        console.error("[Sync] XP logs push failed:", err);
+      for (const table of tablesOrder) {
+        console.log(`[Sync] Pushing ${table}...`);
+        try {
+          await this.pushTable(table);
+        } catch (err) {
+          console.error(`[Sync] ${table} push failed:`, err);
+        }
       }
 
       console.log("[Sync] Sequential push cycles completed.");

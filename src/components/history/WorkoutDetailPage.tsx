@@ -4,14 +4,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db, type LocalWorkout, type LocalSet, type LocalExercise } from "@/db";
 import { MuscleGroupService } from "@/services/StaticReferenceService";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type MetricType =
-  | "weight_reps"
-  | "time_distance"
-  | "time_only"
-  | "distance_only";
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDuration(sec?: number | null): string {
@@ -43,17 +35,6 @@ function formatDistance(meters?: number | null): string {
   if (meters == null) return "-";
   if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km`;
   return `${meters} m`;
-}
-
-function getMetricType(metrics: unknown): MetricType {
-  if (!metrics || typeof metrics !== "object") return "weight_reps";
-  const m = metrics as Record<string, unknown>;
-  const hasDuration = m.duration === true || m.duration === 1;
-  const hasDistance = m.distance === true || m.distance === 1;
-  if (hasDuration && hasDistance) return "time_distance";
-  if (hasDuration) return "time_only";
-  if (hasDistance) return "distance_only";
-  return "weight_reps";
 }
 
 // ─── Shared style constants ───────────────────────────────────────────────────
@@ -368,7 +349,9 @@ export function WorkoutDetailPage() {
     (a, b) => b[1].volume - a[1].volume,
   );
 
-  const workoutName = (workout as any).name ?? "Workout";
+  const workoutName =
+    ((workout as Record<string, unknown>).name as string | undefined) ??
+    "Workout";
 
   // ── Render ──
   // Note: No nav bar here — SubPageLayout renders the back button + title from handle.title

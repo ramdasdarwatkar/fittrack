@@ -16,8 +16,13 @@ import {
   AlertCircle
 } from "lucide-react";
 import { db } from "@/db";
+import type { Tables } from "@/db/supabase";
 import { supabase } from "@/lib/supabase";
 import ExerciseSelectorModal from "@/components/exercises/ExerciseSelectorModal";
+
+const EMPTY_EXERCISES: Tables<"exercises">[] = [];
+const EMPTY_PR_RECORDS: Tables<"personal_records">[] = [];
+const EMPTY_METRIC_RECORDS: Tables<"body_metrics">[] = [];
 
 export default function Trends() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -32,8 +37,8 @@ export default function Trends() {
   const [isExerciseModalOpen, setIsExerciseModalOpen] = useState(false);
 
   // Server Data Fetching States (for "all" timeframe)
-  const [serverPRRecords, setServerPRRecords] = useState<any[]>([]);
-  const [serverMetricRecords, setServerMetricRecords] = useState<any[]>([]);
+  const [serverPRRecords, setServerPRRecords] = useState<Tables<"personal_records">[]>([]);
+  const [serverMetricRecords, setServerMetricRecords] = useState<Tables<"body_metrics">[]>([]);
   const [isLoadingServer, setIsLoadingServer] = useState(false);
 
   // ── Auth Session Resolver ──
@@ -50,7 +55,7 @@ export default function Trends() {
   // ── Exercises Library & Selection ──
   const allExercises = useLiveQuery(async () => {
     return await db.exercises.toArray();
-  }, []) || [];
+  }, []) || EMPTY_EXERCISES;
 
   const availableExercises = useLiveQuery(async () => {
     if (!userId) return [];
@@ -58,7 +63,7 @@ export default function Trends() {
     const uniqueExerciseIds = Array.from(new Set(prs.map((p) => p.exercise_id)));
     const exercises = await db.exercises.bulkGet(uniqueExerciseIds);
     return exercises.filter(Boolean);
-  }, [userId]) || [];
+  }, [userId]) || EMPTY_EXERCISES;
 
   // ── Predefined Biometric Metrics ──
   const availableBiometrics = useMemo(() => [
@@ -82,6 +87,7 @@ export default function Trends() {
   useEffect(() => {
     if (selectedCategory === "movements") {
       if (availableExercises.length > 0 && !selectedExerciseId) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedExerciseId(availableExercises[0].id);
       }
     } else {
@@ -111,7 +117,7 @@ export default function Trends() {
       .toArray();
 
     return prs.sort((a, b) => a.created_at.localeCompare(b.created_at));
-  }, [selectedCategory, activeTimeframe, selectedExerciseId, cutoffDateISO, userId]) || [];
+  }, [selectedCategory, activeTimeframe, selectedExerciseId, cutoffDateISO, userId]) || EMPTY_PR_RECORDS;
 
   const localMetricRecords = useLiveQuery(async () => {
     if (selectedCategory !== "biometrics" || activeTimeframe === "all" || !userId) {
@@ -124,7 +130,128 @@ export default function Trends() {
       .toArray();
 
     return metrics.sort((a, b) => a.date.localeCompare(b.date));
-  }, [selectedCategory, activeTimeframe, cutoffDateISO, userId]) || [];
+  }, [selectedCategory, activeTimeframe, cutoffDateISO, userId]) || EMPTY_METRIC_RECORDS;
+
+  const exerciseProgression = useLiveQuery(
+    () => {
+      if (selectedCategory !== "movements" || !selectedExerciseId || !userId) return null;
+      return db.exerciseProgressions.get([selectedExerciseId, userId]);
+    },
+    [selectedCategory, selectedExerciseId, userId]
+  );
+
+  const allPastSetsForTrends = useLiveQuery(async () => {
+    if (selectedCategory !== "movements" || !selectedExerciseId || !userId) return [];
+    const sets = await db.sets
+      .where("exercise_id")
+      .equals(selectedExerciseId)
+      .filter((s) => s.is_deleted === 0)
+      .toArray();
+    if (sets.length === 0) return [];
+    const workoutIds = [...new Set(sets.map((s) => s.workout_id))];
+    const workouts = await db.workouts.where("id").anyOf(workoutIds).toArray();
+    const workoutMap = new Map(workouts.map((w) => [w.id, w]));
+
+    return sets
+      .map((s) => ({
+        set: s,
+        startTime: workoutMap.get(s.workout_id)?.start_time || workoutMap.get(s.workout_id)?.date || "",
+      }))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  }, [selectedCategory, selectedExerciseId, userId]);
+
+  const progressionPrediction = useMemo(() => {
+    if (!exerciseProgression || !allPastSetsForTrends || allPastSetsForTrends.length === 0) return null;
+
+    const lastSetEntry = allPastSetsForTrends[allPastSetsForTrends.length - 1];
+    if (!lastSetEntry) return null;
+    const lastWorkoutId = lastSetEntry.set.workout_id;
+
+    const lastWorkoutSets = allPastSetsForTrends
+      .filter((item) => item.set.workout_id === lastWorkoutId)
+      .map((item) => item.set)
+      .sort((a, b) => Number(a.set_number) - Number(b.set_number));
+
+    if (lastWorkoutSets.length === 0) return null;
+
+    const lastWeight = lastWorkoutSets[lastWorkoutSets.length - 1].weight || exerciseProgression.target_weight || 0;
+    const targetWeight = exerciseProgression.target_weight || 0;
+
+    if (targetWeight <= lastWeight) {
+      return { weeks: 0, dateStr: "Achieved" };
+    }
+
+    const setsAtCurrentWeight = allPastSetsForTrends.filter((item) => item.set.weight === lastWeight);
+
+    const workoutIdsOrdered: string[] = [];
+    const workoutsAtWeight: Record<string, any[]> = {};
+    setsAtCurrentWeight.forEach((item) => {
+      const wId = item.set.workout_id;
+      if (!workoutsAtWeight[wId]) {
+        workoutsAtWeight[wId] = [];
+        workoutIdsOrdered.push(wId);
+      }
+      workoutsAtWeight[wId].push(item.set);
+    });
+
+    const historyPayload = workoutIdsOrdered.map((wId) => {
+      return workoutsAtWeight[wId].sort(
+        (a, b) => Number(a.set_number) - Number(b.set_number)
+      );
+    });
+
+    const minReps = exerciseProgression.min_reps;
+    const maxReps = exerciseProgression.max_reps;
+    const numSets = lastWorkoutSets.length;
+
+    let currentTargetReps = Array(numSets).fill(minReps);
+    let weightIncrement = false;
+
+    for (let i = 0; i < historyPayload.length; i++) {
+      const logged = historyPayload[i].map((s) => s.reps || 0);
+      if (currentTargetReps.length !== logged.length) {
+        currentTargetReps = Array(logged.length).fill(minReps);
+      }
+
+      const succeeded = logged.every((reps, idx) => reps >= currentTargetReps[idx]);
+
+      if (succeeded) {
+        const allReachedMax = currentTargetReps.every((r) => r >= maxReps);
+        if (allReachedMax) {
+          weightIncrement = true;
+          currentTargetReps = Array(logged.length).fill(minReps);
+        } else {
+          weightIncrement = false;
+          const minVal = Math.min(...currentTargetReps);
+          const idxToIncrement = currentTargetReps.indexOf(minVal);
+          if (idxToIncrement !== -1) {
+            currentTargetReps[idxToIncrement] = Math.min(maxReps, currentTargetReps[idxToIncrement] + 1);
+          }
+        }
+      } else {
+        weightIncrement = false;
+      }
+    }
+
+    const weightDistance = targetWeight - lastWeight;
+    const progressWeight = exerciseProgression.progress_weight && exerciseProgression.progress_weight > 0
+      ? exerciseProgression.progress_weight
+      : 2.5;
+    const weightSteps = Math.ceil(weightDistance / progressWeight);
+
+    const firstStepWorkouts = currentTargetReps.reduce((sum, r) => sum + (maxReps - r), 0);
+    const subsequentWorkouts = (weightSteps - 1) * (numSets * (maxReps - minReps));
+    const totalWorkouts = firstStepWorkouts + subsequentWorkouts;
+
+    const estDate = new Date();
+    estDate.setDate(estDate.getDate() + totalWorkouts * 7);
+    const dateStr = estDate.toLocaleDateString(undefined, { year: "emerald" ? "numeric" : "numeric", month: "short", day: "numeric" });
+
+    return {
+      weeks: totalWorkouts,
+      dateStr,
+    };
+  }, [exerciseProgression, allPastSetsForTrends]);
 
   // ── Fetch Server Table Records ("ALL" timeframe) ──
   useEffect(() => {
@@ -169,9 +296,9 @@ export default function Trends() {
 
   // ── Normalize Data Structure for the Spline Chart ──
   const normalizedData = useMemo(() => {
-    const formatValue = (record: any, field: string) => {
+    const formatValue = (record: Tables<"body_metrics">, field: keyof Tables<"body_metrics">) => {
       const val = record[field];
-      return typeof val === "number" ? val : parseFloat(val) || 0;
+      return typeof val === "number" ? val : parseFloat(String(val)) || 0;
     };
 
     if (activeTimeframe === "all") {
@@ -185,8 +312,8 @@ export default function Trends() {
         return serverMetricRecords
           .map((r) => ({
             date: r.date,
-            value: formatValue(r, selectedMetricId),
-            label: `${formatValue(r, selectedMetricId)} ${activeMetricObj.unit}`,
+            value: formatValue(r, selectedMetricId as keyof Tables<"body_metrics">),
+            label: `${formatValue(r, selectedMetricId as keyof Tables<"body_metrics">)} ${activeMetricObj.unit}`,
           }))
           .filter((d) => d.value > 0);
       }
@@ -201,8 +328,8 @@ export default function Trends() {
         return localMetricRecords
           .map((r) => ({
             date: r.date,
-            value: formatValue(r, selectedMetricId),
-            label: `${formatValue(r, selectedMetricId)} ${activeMetricObj.unit}`,
+            value: formatValue(r, selectedMetricId as keyof Tables<"body_metrics">),
+            label: `${formatValue(r, selectedMetricId as keyof Tables<"body_metrics">)} ${activeMetricObj.unit}`,
           }))
           .filter((d) => d.value > 0);
       }
@@ -254,7 +381,7 @@ export default function Trends() {
     return found?.name || "Select Exercise";
   }, [allExercises, selectedExerciseId]);
 
-  const handleExerciseConfirm = (selected: any[]) => {
+  const handleExerciseConfirm = (selected: Tables<"exercises">[]) => {
     if (selected.length > 0) {
       setSelectedExerciseId(selected[0].id);
     }
@@ -423,6 +550,76 @@ export default function Trends() {
             )}
           </AnimatePresence>
         </div>
+
+        {/* ── Target Achievement Progression Roadmap ── */}
+        {selectedCategory === "movements" && exerciseProgression && exerciseProgression.target_weight && (
+          <div
+            className="rounded-3xl p-5 border relative overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.03)] space-y-4"
+            style={{
+              background: "color-mix(in srgb, var(--card) 75%, transparent)",
+              backdropFilter: "blur(12px)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2 items-center">
+                <div
+                  className="w-7 h-7 rounded-xl flex items-center justify-center bg-primary/10 text-primary"
+                >
+                  <Sparkle size={14} />
+                </div>
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-wider mb-0.5" style={{ color: "var(--muted-foreground)" }}>
+                    Target Achievement
+                  </p>
+                  <h3 className="font-black text-xs uppercase tracking-tight text-foreground leading-none">
+                    Progression Roadmap
+                  </h3>
+                </div>
+              </div>
+              <span className="text-[10px] font-black uppercase text-primary tracking-widest">
+                {Math.round(((stats.latest || 0) / exerciseProgression.target_weight) * 100)}% Reached
+              </span>
+            </div>
+
+            {/* Target Progress Bar */}
+            <div className="space-y-2">
+              <div className="w-full h-3 bg-secondary rounded-full overflow-hidden border border-border/30">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-primary via-indigo-500 to-emerald-400 transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, Math.round(((stats.latest || 0) / exerciseProgression.target_weight) * 100))}%`
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-black text-muted-foreground uppercase">
+                <span>PR: {stats.latest || 0} kg</span>
+                <span>Target: {exerciseProgression.target_weight} kg</span>
+              </div>
+            </div>
+
+            {/* Timeline Prediction */}
+            {progressionPrediction && (
+              <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase py-1.5 border-t border-b border-border/20">
+                <Calendar size={12} className="text-primary" />
+                <span>
+                  Est. Completion: {progressionPrediction.weeks === 0 ? "Target Achieved 🏆" : `${progressionPrediction.dateStr} (${progressionPrediction.weeks} weeks left)`}
+                </span>
+              </div>
+            )}
+
+            {/* Micro Message / Stat Info */}
+            <div className="text-[10px] font-bold text-foreground/80 leading-relaxed bg-secondary/50 rounded-xl p-3 border border-border/30">
+              {(stats.latest || 0) >= exerciseProgression.target_weight ? (
+                <span>🎉 Target fully achieved! Excellent work. You are ready to increase your baseline goals.</span>
+              ) : (
+                <span>
+                  🔥 You are only <strong>{(exerciseProgression.target_weight - (stats.latest || 0)).toFixed(1)} kg</strong> away from your double progression target. Keep pushing!
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Spline Chart Glowing Panel ── */}
         <div

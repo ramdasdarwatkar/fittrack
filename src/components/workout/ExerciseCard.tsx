@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import {
   Plus,
   ChevronDown,
@@ -14,6 +15,7 @@ import { WorkoutSetService } from "@/services/SetService";
 import { MuscleGroupService } from "@/services/StaticReferenceService";
 import { PersonalRecordsService } from "@/services/PersonalRecordsService";
 import { useWorkoutUIStore } from "@/stores/useWorkoutUIStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import { db } from "@/db";
 import type { Tables } from "@/db/supabase";
 import type { LocalSet as LocalWorkoutSet } from "@/db";
@@ -59,6 +61,13 @@ export default function ExerciseCard({
     setExerciseOrder,
   } = useWorkoutUIStore();
 
+  const { weightUnit } = useSettingsStore();
+
+  const progression = useLiveQuery(
+    () => db.exerciseProgressions.get([exercise.id, userId]),
+    [exercise.id, userId]
+  );
+
   const isExpanded = !!expandedExercises[exercise.id];
   const isLocked = !!lockedExercises[exercise.id];
   const restCountdown = activeRestTimers[exercise.id] || 0;
@@ -70,6 +79,9 @@ export default function ExerciseCard({
   const [smartPlaceholders, setSmartPlaceholders] = useState<
     Record<number, SmartPlaceholder>
   >({});
+  const [allPastSets, setAllPastSets] = useState<
+    { set: LocalWorkoutSet; startTime: string }[]
+  >([]);
 
   useEffect(() => {
     if (exercise.muscle_group_id) {
@@ -109,6 +121,35 @@ export default function ExerciseCard({
   }, [exercise.id, workoutId]);
 
   useEffect(() => {
+    db.sets
+      .where("exercise_id")
+      .equals(exercise.id)
+      .filter((s) => s.is_deleted === 0 && s.workout_id !== workoutId)
+      .toArray()
+      .then(async (sets) => {
+        if (sets.length === 0) {
+          setAllPastSets([]);
+          return;
+        }
+        const workoutIds = [...new Set(sets.map((s) => s.workout_id))];
+        const workouts = await db.workouts.where("id").anyOf(workoutIds).toArray();
+        const workoutMap = new Map(workouts.map((w) => [w.id, w]));
+
+        const sorted = sets
+          .map((s) => {
+            const w = workoutMap.get(s.workout_id);
+            return {
+              set: s,
+              startTime: w?.start_time || w?.date || "",
+            };
+          })
+          .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+        setAllPastSets(sorted);
+      });
+  }, [exercise.id, workoutId]);
+
+  useEffect(() => {
     if (restCountdown <= 0) return;
     const intervalId = setInterval(() => decrementRestTimer(exercise.id), 1000);
     return () => clearInterval(intervalId);
@@ -144,6 +185,118 @@ export default function ExerciseCard({
       .filter(Boolean);
     return validSegments.length > 0 ? validSegments.join("  ·  ") : null;
   }, [smartPlaceholders, showDuration, showDistance]);
+
+  const doubleProgressionSuggestion = useMemo(() => {
+    if (!showWeight || showDuration || showDistance) {
+      return null;
+    }
+
+    if (allPastSets.length === 0) {
+      return null;
+    }
+
+    const lastSetEntry = allPastSets[allPastSets.length - 1];
+    if (!lastSetEntry) return null;
+    const lastWorkoutId = lastSetEntry.set.workout_id;
+
+    const lastWorkoutSets = allPastSets
+      .filter((item) => item.set.workout_id === lastWorkoutId)
+      .map((item) => item.set)
+      .sort((a, b) => Number(a.set_number) - Number(b.set_number));
+
+    if (lastWorkoutSets.length === 0) {
+      return null;
+    }
+
+    const lastWeight = lastWorkoutSets[lastWorkoutSets.length - 1].weight || (progression ? progression.target_weight : null) || 0;
+
+    if (!progression) {
+      const weightUnitStr = weightUnit || "kg";
+      const fallbackSetsAtCurrentWeight = allPastSets.filter((item) => item.set.weight === lastWeight);
+      const fallbackWorkoutIds = new Set(fallbackSetsAtCurrentWeight.map((item) => item.set.workout_id));
+      const count = fallbackWorkoutIds.size;
+      const text = lastWorkoutSets.map((s) => `${s.weight || 0}${weightUnitStr} x ${s.reps || 0} reps`).join("    |    ");
+      return {
+        type: "keep" as const,
+        weight: lastWeight,
+        workoutCount: count,
+        message: `↩️ ${text}`,
+      };
+    }
+
+    const setsAtCurrentWeight = allPastSets.filter((item) => item.set.weight === lastWeight);
+
+    const workoutIdsOrdered: string[] = [];
+    const workoutsAtWeight: Record<string, LocalWorkoutSet[]> = {};
+    setsAtCurrentWeight.forEach((item) => {
+      const wId = item.set.workout_id;
+      if (!workoutsAtWeight[wId]) {
+        workoutsAtWeight[wId] = [];
+        workoutIdsOrdered.push(wId);
+      }
+      workoutsAtWeight[wId].push(item.set);
+    });
+
+    const historyPayload = workoutIdsOrdered.map((wId) => {
+      return workoutsAtWeight[wId].sort(
+        (a, b) => Number(a.set_number) - Number(b.set_number)
+      );
+    });
+
+    const minReps = progression.min_reps;
+    const maxReps = progression.max_reps;
+
+    let currentTargetReps = Array(lastWorkoutSets.length).fill(minReps);
+    let weightIncrement = false;
+
+    for (let i = 0; i < historyPayload.length; i++) {
+      const logged = historyPayload[i].map((s) => s.reps || 0);
+      if (currentTargetReps.length !== logged.length) {
+        currentTargetReps = Array(logged.length).fill(minReps);
+      }
+
+      const succeeded = logged.every((reps, idx) => reps >= currentTargetReps[idx]);
+
+      if (succeeded) {
+        const allReachedMax = currentTargetReps.every((r) => r >= maxReps);
+        if (allReachedMax) {
+          weightIncrement = true;
+          currentTargetReps = Array(logged.length).fill(minReps);
+        } else {
+          weightIncrement = false;
+          const minVal = Math.min(...currentTargetReps);
+          const idxToIncrement = currentTargetReps.indexOf(minVal);
+          if (idxToIncrement !== -1) {
+            currentTargetReps[idxToIncrement] = Math.min(maxReps, currentTargetReps[idxToIncrement] + 1);
+          }
+        }
+      } else {
+        weightIncrement = false;
+      }
+    }
+
+    const weightUnitStr = weightUnit || "kg";
+    if (weightIncrement) {
+      const newWeight = lastWeight + (progression.progress_weight ?? 2.5);
+      const repsArray = Array(currentTargetReps.length).fill(minReps);
+      const text = repsArray.map((r) => `${newWeight}${weightUnitStr} x ${r} reps`).join("    |    ");
+      return {
+        type: "progress" as const,
+        weight: newWeight,
+        workoutCount: 1,
+        message: `📈 ${text}`,
+      };
+    } else {
+      const count = workoutIdsOrdered.length + 1;
+      const text = currentTargetReps.map((r) => `${lastWeight}${weightUnitStr} x ${r} reps`).join("    |    ");
+      return {
+        type: "keep" as const,
+        weight: lastWeight,
+        workoutCount: count,
+        message: `🔄 ${text}`,
+      };
+    }
+  }, [allPastSets, progression, showWeight, showDuration, showDistance, weightUnit]);
 
   const handleTriggerRestOverlay = () =>
     startRestTimer(exercise.id, exercise.rest_seconds || 60);
@@ -378,7 +531,57 @@ export default function ExerciseCard({
             <span />
           </div>
 
-          {plainHistoricalTargetStripText && !isLocked && (
+          {doubleProgressionSuggestion && !isLocked ? (
+            <div
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border"
+              style={{
+                background:
+                  doubleProgressionSuggestion.type === "progress"
+                    ? "color-mix(in srgb, var(--success) 8%, transparent)"
+                    : "color-mix(in srgb, var(--primary) 6%, transparent)",
+                borderColor:
+                  doubleProgressionSuggestion.type === "progress"
+                    ? "color-mix(in srgb, var(--success) 20%, transparent)"
+                    : "color-mix(in srgb, var(--primary) 15%, transparent)",
+              }}
+            >
+              <span
+                className="text-xs font-black tracking-tight"
+                style={{
+                  whiteSpace: "pre-wrap",
+                  color:
+                    doubleProgressionSuggestion.type === "progress"
+                      ? "var(--success)"
+                      : "var(--primary)",
+                }}
+              >
+                {doubleProgressionSuggestion.message}
+              </span>
+              {doubleProgressionSuggestion.workoutCount !== undefined && (
+                <div
+                  className="flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-black shrink-0"
+                  style={{
+                    background:
+                      doubleProgressionSuggestion.type === "progress"
+                        ? "color-mix(in srgb, var(--success) 20%, transparent)"
+                        : "color-mix(in srgb, var(--primary) 15%, transparent)",
+                    color:
+                      doubleProgressionSuggestion.type === "progress"
+                        ? "var(--success)"
+                        : "var(--primary)",
+                    border: `1px solid ${
+                      doubleProgressionSuggestion.type === "progress"
+                        ? "color-mix(in srgb, var(--success) 40%, transparent)"
+                        : "color-mix(in srgb, var(--primary) 30%, transparent)"
+                    }`,
+                  }}
+                  title={`Workout ${doubleProgressionSuggestion.workoutCount} at this weight`}
+                >
+                  {doubleProgressionSuggestion.workoutCount}
+                </div>
+              )}
+            </div>
+          ) : plainHistoricalTargetStripText && !isLocked ? (
             <div
               className="flex items-center gap-2 px-1 py-1 rounded-lg"
               style={{
@@ -394,7 +597,7 @@ export default function ExerciseCard({
                 {plainHistoricalTargetStripText}
               </span>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-1.5">
             {exerciseSets.map((s) => (

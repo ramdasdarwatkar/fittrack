@@ -118,6 +118,7 @@ export default function BodyMetricsSettings() {
     // When latest arrives/changes AND we are NOT mid-edit, keep draft in sync
     useEffect(() => {
         if (!editing && latest) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setDraft(toFormValues(latest));
         }
     }, [latest, editing]);

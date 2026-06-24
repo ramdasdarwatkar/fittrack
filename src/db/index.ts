@@ -20,6 +20,7 @@ export type Syncable<T> = T & {
 export interface SyncMetadata {
   table_name: string;
   last_pulled_at: string | null;
+  last_error?: string | null;
 }
 
 // Explicit Type aliases for easier imports across your service layers
@@ -27,6 +28,7 @@ export type LocalProfile = Syncable<Tables<"user_profiles">>;
 export type LocalBodyMetric = Syncable<Tables<"body_metrics">>;
 export type LocalGoal = Syncable<Tables<"goals">>;
 export type LocalExercise = Syncable<Tables<"exercises">>;
+export type LocalExerciseProgression = Syncable<Tables<"exercise_progression">>;
 export type LocalRoutine = Syncable<Tables<"routines">>;
 export type LocalRoutineExercise = Syncable<Tables<"routine_exercises">>;
 export type LocalWorkout = Syncable<Tables<"workouts">> & {
@@ -52,6 +54,7 @@ export class FitTrackDB extends Dexie {
   bodyMetrics!: Table<LocalBodyMetric, [string, string]>; // Composite Key: [user_id, date]
   goals!: Table<LocalGoal, string>;
   exercises!: Table<LocalExercise, string>;
+  exerciseProgressions!: Table<LocalExerciseProgression, [string, string]>; // Composite Key: [exercise_id, user_id]
   routines!: Table<LocalRoutine, string>;
   routineExercises!: Table<LocalRoutineExercise, [string, string]>; // Composite Key: [routine_id, exercise_id]
   workouts!: Table<LocalWorkout, string>;
@@ -80,6 +83,8 @@ export class FitTrackDB extends Dexie {
       bodyMetrics: "[user_id+date], user_id, date, is_dirty, is_deleted",
       exercises:
         "id, user_id, muscle_group_id, muscle_id, is_dirty, is_deleted",
+      exerciseProgressions:
+        "[exercise_id+user_id], exercise_id, user_id, is_dirty, is_deleted",
       goals: "id, user_id, goaltype, completed_at, is_dirty, is_deleted",
       personalRecords:
         "id, [user_id+exercise_id+created_at],user_id,exercise_id,created_at, prtype, set_id, is_dirty, is_deleted",
@@ -94,6 +99,12 @@ export class FitTrackDB extends Dexie {
       // Static Reference Collections
       muscleGroups: "id, name",
       muscles: "id, muscle_group, name",
+    });
+
+    // Version 2 Schema upgrades for workout suggestion logic
+    this.version(2).stores({
+      routines: "id, user_id, updated_at, is_dirty, is_deleted, sequence_number",
+      workouts: "id, user_id, date, is_dirty, is_deleted, completed, routine_id",
     });
   }
 }

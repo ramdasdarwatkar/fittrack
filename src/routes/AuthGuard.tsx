@@ -3,6 +3,8 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { ProfileService } from "@/services/ProfileService";
 
+import { LoginSkeleton, DashboardSkeleton } from "@/components/common/Skeletons";
+
 export default function AuthGuard() {
   const [status, setStatus] = useState<
     "loading" | "unauth" | "onboard" | "ready"
@@ -57,7 +59,10 @@ export default function AuthGuard() {
   }, []);
 
   if (status === "loading") {
-    return <div className="h-svh w-full bg-background" />;
+    if (location.pathname === "/login") {
+      return <LoginSkeleton />;
+    }
+    return <DashboardSkeleton />;
   }
 
   const path = location.pathname;

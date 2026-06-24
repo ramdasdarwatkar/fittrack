@@ -62,12 +62,17 @@ export const WorkoutSetService = {
 
     // Delete linked PRs
     await db.personalRecords.where("set_id").equals(setId).delete();
-    await db.sets.delete(setId);
 
-    // REMOVED: The for-loop that forced set_number to 1, 2, 3...
-    // With your new decimal system, we do NOT want to overwrite set numbers.
-    // Deleting a set now leaves the remaining numbers (e.g., 1.01, 1.03)
-    // exactly as they are, which preserves the sequence order perfectly.
+    if (set.is_dirty === 1 && !set.updated_at) {
+      await db.sets.delete(setId);
+    } else {
+      await db.sets.put({
+        ...set,
+        is_deleted: 1,
+        is_dirty: 1,
+        updated_at: new Date().toISOString(),
+      });
+    }
   },
 
   async deleteSetsForWorkout(workoutId: string): Promise<void> {
@@ -143,6 +148,7 @@ export const WorkoutSetService = {
     }
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, completed: _c, ...rest }) => rest,
       );
       const { error } = await supabase.from("sets").upsert(payload);

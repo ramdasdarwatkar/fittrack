@@ -1,8 +1,7 @@
 import React from "react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import type { AccentColor, ThemeMode } from "@/types/settings";
-import { Check, Moon, Sun, Monitor, ChevronLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Check, Moon, Sun, Monitor } from "lucide-react";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -42,7 +41,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ─── AppearanceSettings ───────────────────────────────────────────────────────
 
 export default function AppearanceSettings() {
-    const navigate = useNavigate();
     const {
         theme, setTheme,
         accentColor, setAccentColor,

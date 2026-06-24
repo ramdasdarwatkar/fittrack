@@ -67,6 +67,7 @@ export default function Workout() {
       }, []);
       setExerciseOrder(uniqueIds);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeWorkout?.id,
     currentWorkoutSets.length,
@@ -353,7 +354,6 @@ export default function Workout() {
         workout={activeWorkout}
         allWorkoutSets={currentWorkoutSets as LocalWorkoutSet[]}
         isRetroactive={isRetro}
-        runningDurationSec={activeWorkout.duration_sec ?? 0}
         note={note}
         setNote={setNote}
       />

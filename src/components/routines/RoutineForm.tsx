@@ -11,7 +11,6 @@ import {
   Layers,
   AlertTriangle,
   X,
-  GripVertical,
 } from "lucide-react";
 
 import { RoutineService } from "@/services/RoutineService";
@@ -167,6 +166,8 @@ function EmptySequence({ onAdd }: { onAdd: () => void }) {
   );
 }
 
+const EMPTY_LIBRARY: Tables<"exercises">[] = [];
+
 // ── Main component ─────────────────────────────────────────────────────────
 export default function RoutineForm() {
   const { id } = useParams<{ id: string }>();
@@ -185,13 +186,14 @@ export default function RoutineForm() {
   } | null>(null);
 
   const [name, setName] = useState("");
+  const [sequenceNumber, setSequenceNumber] = useState<number | "">("");
   const [selected, setSelected] = useState<RoutineEntry[]>([]);
   const [showSelector, setShowSelector] = useState(false);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const exerciseLibrary =
-    useLiveQuery(() => ExerciseService.listActive()) || [];
+    useLiveQuery(() => ExerciseService.listActive()) || EMPTY_LIBRARY;
 
   // Auth
   useEffect(() => {
@@ -224,6 +226,7 @@ export default function RoutineForm() {
     const res = await RoutineService.getFullRoutine(id);
     if (res) {
       setName(res.routine.name);
+      setSequenceNumber(res.routine.sequence_number ?? "");
       const hydratedEntries = res.exercises.map((mappingRow) => {
         const matchedExercise = exerciseLibrary.find(
           (l) => l.id === mappingRow.exercise_id,
@@ -241,6 +244,7 @@ export default function RoutineForm() {
   }, [id, exerciseLibrary]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadExistingRoutine();
   }, [loadExistingRoutine]);
 
@@ -303,6 +307,7 @@ export default function RoutineForm() {
         id: routineId,
         name: name.trim(),
         user_id: userId,
+        sequence_number: sequenceNumber === "" ? null : Number(sequenceNumber),
       } as Tables<"routines">,
       exercises: selected.map((ex, i) => ({
         routine_id: routineId,
@@ -415,34 +420,64 @@ export default function RoutineForm() {
           </div>
 
           {isEditing ? (
-            <div className="space-y-1">
-              <label
-                htmlFor="routine-name"
-                className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-              >
-                Name{" "}
-                <span aria-hidden="true" className="text-destructive">
-                  *
-                </span>
-              </label>
-              <input
-                id="routine-name"
-                ref={nameInputRef}
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  markDirty();
-                }}
-                className="w-full bg-transparent text-2xl font-black tracking-tight text-foreground outline-none border-b border-border pb-1 focus:border-primary transition-colors"
-                placeholder="e.g. Upper body strength"
-                autoComplete="off"
-                aria-required="true"
-              />
+            <div className="flex gap-4">
+              <div className="flex-1 space-y-1">
+                <label
+                  htmlFor="routine-name"
+                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                >
+                  Name{" "}
+                  <span aria-hidden="true" className="text-destructive">
+                    *
+                  </span>
+                </label>
+                <input
+                  id="routine-name"
+                  ref={nameInputRef}
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    markDirty();
+                  }}
+                  className="w-full bg-transparent text-2xl font-black tracking-tight text-foreground outline-none border-b border-border pb-1 focus:border-primary transition-colors"
+                  placeholder="e.g. Upper body strength"
+                  autoComplete="off"
+                  aria-required="true"
+                />
+              </div>
+              <div className="w-24 space-y-1">
+                <label
+                  htmlFor="routine-seq"
+                  className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                >
+                  Seq #
+                </label>
+                <input
+                  id="routine-seq"
+                  type="number"
+                  value={sequenceNumber}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSequenceNumber(val === "" ? "" : Number(val));
+                    markDirty();
+                  }}
+                  className="w-full bg-transparent text-2xl font-black tracking-tight text-foreground outline-none border-b border-border pb-1 focus:border-primary transition-colors text-center"
+                  placeholder="—"
+                  min={1}
+                />
+              </div>
             </div>
           ) : (
-            <h1 className="text-2xl font-black tracking-tight text-foreground uppercase italic leading-none">
-              {name || "Untitled routine"}
-            </h1>
+            <div className="flex justify-between items-baseline">
+              <h1 className="text-2xl font-black tracking-tight text-foreground uppercase italic leading-none">
+                {name || "Untitled routine"}
+              </h1>
+              {sequenceNumber !== "" && (
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                  Seq #{sequenceNumber}
+                </span>
+              )}
+            </div>
           )}
 
           {/* Exercise count badge in view mode */}

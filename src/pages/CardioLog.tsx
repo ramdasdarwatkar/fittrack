@@ -74,7 +74,7 @@ export default function CardioLog() {
       const m = Array.isArray(ex.metrics)
         ? ex.metrics
         : typeof ex.metrics === "object" && ex.metrics !== null
-        ? Object.keys(ex.metrics).filter((k) => (ex.metrics as any)[k] === true || (ex.metrics as any)[k] === 1)
+        ? Object.keys(ex.metrics).filter((k) => (ex.metrics as Record<string, unknown>)[k] === true || (ex.metrics as Record<string, unknown>)[k] === 1)
         : [];
       const hasCardioMetric = m.includes("duration") || m.includes("distance") || m.includes("duration_sec") || m.includes("distance_meters");
       
@@ -98,7 +98,7 @@ export default function CardioLog() {
     const m = Array.isArray(selectedExercise.metrics)
       ? selectedExercise.metrics
       : typeof selectedExercise.metrics === "object" && selectedExercise.metrics !== null
-      ? Object.keys(selectedExercise.metrics).filter((k) => (selectedExercise.metrics as any)[k] === true || (selectedExercise.metrics as any)[k] === 1)
+      ? Object.keys(selectedExercise.metrics).filter((k) => (selectedExercise.metrics as Record<string, unknown>)[k] === true || (selectedExercise.metrics as Record<string, unknown>)[k] === 1)
       : [];
 
     return {
@@ -119,6 +119,7 @@ export default function CardioLog() {
         const endMin = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
         const diff = endMin - startMin;
         if (diff > 0) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
           setDurationMins(String(diff));
           setDurationSecs("00");
         }

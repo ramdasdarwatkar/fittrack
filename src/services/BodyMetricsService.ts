@@ -43,6 +43,7 @@ export const BodyMetricsService = {
     // 2. Handle Upserts
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
       );
       const { error } = await supabase.from("body_metrics").upsert(payload);

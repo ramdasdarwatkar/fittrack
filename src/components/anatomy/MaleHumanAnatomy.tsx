@@ -2,7 +2,6 @@ import type { HumanMuscleAnatomyProps, MuscleGroup } from "@/pages/Trends";
 
 export default function MaleHumanAnatomy({
     defaultMuscleColor = '#1f1f1f',
-    backgroundColor = '#000000',
     primaryHighlightColor = '#ff0000',
     secondaryHighlightColor = '#ff0000',
     primaryOpacity = 0.5,

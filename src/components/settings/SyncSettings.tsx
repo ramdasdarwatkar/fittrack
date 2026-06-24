@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { motion, AnimatePresence } from "framer-motion";
-import { db } from "@/db";
+import { db, type SyncMetadata } from "@/db";
 import { supabase } from "@/lib/supabase";
 import { SyncService } from "@/services/SyncService";
 import {
@@ -22,6 +22,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -96,18 +97,46 @@ function Toast({ message, type, visible }: ToastProps) {
   );
 }
 
+interface SyncEntity {
+  key: string;
+  supabaseTable: string;
+  label: string;
+  description: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: any;
+  accent: string;
+  push: () => Promise<void>;
+  pull: () => Promise<void>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbTable: any;
+}
+
+const EMPTY_SYNC_METADATA: SyncMetadata[] = [];
+interface TableStat {
+  key: string;
+  total: number;
+  dirty: number;
+  deleted: number;
+}
+const EMPTY_STATS: TableStat[] = [];
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SyncSettings() {
   const [userId, setUserId] = useState<string | null>(null);
   const [activeSyncingKey, setActiveSyncingKey] = useState<string | null>(null);
   const [isSyncingAll, setIsSyncingAll] = useState(false);
-  const [selectedTableViewer, setSelectedTableViewer] = useState<any | null>(null);
+  const [selectedTableViewer, setSelectedTableViewer] = useState<SyncEntity | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info"; visible: boolean }>({
     message: "",
     type: "info",
     visible: false,
   });
+  const [selectedError, setSelectedError] = useState<{
+    title: string;
+    error: string;
+    onRetry: (e?: any) => void;
+  } | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -116,9 +145,14 @@ export default function SyncSettings() {
   }, []);
 
   // Fetch db sync metadata to retrieve last pull/sync times
-  const syncMetadataList = useLiveQuery(() => db.syncMetadata.toArray()) ?? [];
+  const syncMetadataList = useLiveQuery(() => db.syncMetadata.toArray()) ?? EMPTY_SYNC_METADATA;
   const metadataMap = useMemo(() => {
-    return new Map(syncMetadataList.map((m) => [m.table_name, m.last_pulled_at]));
+    return new Map(
+      syncMetadataList.map((m) => [
+        m.table_name,
+        { last_pulled_at: m.last_pulled_at, last_error: m.last_error },
+      ])
+    );
   }, [syncMetadataList]);
 
   // Construct entity lists mapping purely to SyncService wrapper functions
@@ -236,6 +270,17 @@ export default function SyncSettings() {
       pull: () => SyncService.pullTable("xp_log"),
       dbTable: db.xpLog,
     },
+    {
+      key: "exerciseProgressions",
+      supabaseTable: "exercise_progression" as const,
+      label: "Exercise Progressions",
+      description: "Double progression targets",
+      icon: Dumbbell,
+      accent: "var(--warning)",
+      push: () => SyncService.pushTable("exercise_progression"),
+      pull: () => SyncService.pullTable("exercise_progression"),
+      dbTable: db.exerciseProgressions,
+    },
   ];
 
   // Fetch metrics dynamically inside useLiveQuery to avoid manual refreshes
@@ -244,15 +289,22 @@ export default function SyncSettings() {
     for (const ent of entities) {
       try {
         const total = await ent.dbTable.count();
-        const dirty = await ent.dbTable.where("is_dirty").equals(1).count();
+        let dirty = 0;
+        if (ent.key === "workouts" || ent.key === "sets") {
+          dirty = await ent.dbTable
+            .filter((row: any) => row.is_dirty === 1 && (row.completed === 1 || row.is_deleted === 1))
+            .count();
+        } else {
+          dirty = await ent.dbTable.where("is_dirty").equals(1).count();
+        }
         const deleted = await ent.dbTable.where("is_deleted").equals(1).count();
         list.push({ key: ent.key, total, dirty, deleted });
-      } catch (err) {
+      } catch {
         list.push({ key: ent.key, total: 0, dirty: 0, deleted: 0 });
       }
     }
     return list;
-  }, [userId]) ?? [];
+  }, [userId]) ?? EMPTY_STATS;
 
   const statsMap = useMemo(() => {
     return new Map(statsList.map((s) => [s.key, s]));
@@ -406,7 +458,9 @@ export default function SyncSettings() {
             {entities.map((ent) => {
               const Icon = ent.icon;
               const meta = statsMap.get(ent.key) ?? { total: 0, dirty: 0, deleted: 0 };
-              const lastSynced = metadataMap.get(ent.supabaseTable) ?? null;
+              const metaObj = metadataMap.get(ent.supabaseTable);
+              const lastSynced = metaObj?.last_pulled_at ?? null;
+              const lastError = metaObj?.last_error ?? null;
               const hasDirty = meta.dirty > 0 || meta.deleted > 0;
               const isSyncingThis = activeSyncingKey === ent.key;
 
@@ -455,6 +509,30 @@ export default function SyncSettings() {
                         >
                           {meta.dirty + meta.deleted} pending
                         </span>
+                      )}
+
+                      {/* Error details button */}
+                      {lastError && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedError({
+                              title: `${ent.label} Sync Failed`,
+                              error: lastError,
+                              onRetry: () => handleSyncIndividual(ent)
+                            });
+                          }}
+                          className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full hover:scale-105 active:scale-95 transition-all border shrink-0 cursor-pointer"
+                          style={{
+                            background: "color-mix(in srgb, var(--destructive) 12%, transparent)",
+                            color: "var(--destructive)",
+                            borderColor: "color-mix(in srgb, var(--destructive) 24%, transparent)",
+                          }}
+                        >
+                          <AlertTriangle size={10} strokeWidth={2.5} />
+                          View Error
+                        </button>
                       )}
                     </div>
 
@@ -509,6 +587,16 @@ export default function SyncSettings() {
           <TableViewerDrawer
             ent={selectedTableViewer}
             onClose={() => setSelectedTableViewer(null)}
+            setSelectedError={setSelectedError}
+            showToast={showToast}
+          />
+        )}
+        {selectedError && (
+          <ErrorModal
+            title={selectedError.title}
+            error={selectedError.error}
+            onClose={() => setSelectedError(null)}
+            onRetry={selectedError.onRetry}
           />
         )}
       </AnimatePresence>
@@ -516,38 +604,183 @@ export default function SyncSettings() {
   );
 }
 
-// ─── Local Table Viewer Drawer ───────────────────────────────────────────────
+// ─── Error Details Popup Modal ───────────────────────────────────────────────
 
-interface TableViewerDrawerProps {
-  ent: any;
+interface ErrorModalProps {
+  title: string;
+  error: string;
   onClose: () => void;
+  onRetry: () => void;
 }
 
-function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
-  const [search, setSearch] = useState("");
+function ErrorModal({ title, error, onClose, onRetry }: ErrorModalProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(error);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy error to clipboard:", err);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/75 backdrop-blur-md"
+      />
+
+      {/* Modal Content */}
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        transition={{ type: "spring", damping: 25, stiffness: 350 }}
+        className="relative w-full max-w-sm bg-card border border-border rounded-[2rem] p-6 shadow-2xl overflow-hidden"
+        style={{
+          background: "var(--card)",
+          borderColor: "var(--border)",
+        }}
+      >
+        {/* Glow decoration */}
+        <div
+          aria-hidden
+          className="absolute -top-24 -left-24 w-48 h-48 rounded-full pointer-events-none"
+          style={{
+            background: "color-mix(in srgb, var(--destructive) 15%, transparent)",
+            filter: "blur(40px)",
+          }}
+        />
+
+        <div className="relative z-10 flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-destructive/15 text-destructive shrink-0">
+              <AlertTriangle size={18} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="font-black text-md tracking-tight leading-none text-foreground">
+                {title}
+              </h3>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mt-1">
+                Sync Failure Reason
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="rounded-xl border p-3.5 max-h-[160px] overflow-y-auto text-left"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--secondary)",
+            }}
+          >
+            <pre className="text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all leading-relaxed select-text">
+              {error}
+            </pre>
+          </div>
+
+          <div className="flex gap-2 mt-1">
+            <button
+              onClick={handleCopy}
+              className="flex-1 h-9 rounded-xl border border-border flex items-center justify-center gap-1.5 font-bold text-[10px] uppercase tracking-wider bg-secondary text-foreground hover:bg-muted/30 active:scale-[0.98] transition-all cursor-pointer"
+            >
+              {copied ? (
+                <>
+                  <Check size={11} strokeWidth={3} className="text-success" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <span>Copy Error</span>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                onRetry();
+                onClose();
+              }}
+              className="flex-1 h-9 rounded-xl flex items-center justify-center gap-1.5 font-black text-[10px] uppercase tracking-wider bg-primary text-primary-foreground hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+            >
+              <RefreshCw size={10} strokeWidth={2.5} />
+              <span>Retry Sync</span>
+            </button>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-full h-9 rounded-xl border border-border flex items-center justify-center font-bold text-[10px] uppercase tracking-wider bg-transparent text-muted-foreground hover:bg-secondary/20 active:scale-[0.98] transition-all cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Local Table Viewer Drawer ───────────────────────────────────────────────
+
+const EMPTY_ROWS: unknown[] = [];
+
+interface TableViewerDrawerProps {
+  ent: SyncEntity;
+  onClose: () => void;
+  setSelectedError: React.Dispatch<React.SetStateAction<{ title: string; error: string; onRetry: (e?: any) => void } | null>>;
+  showToast: (message: string, type: "success" | "error" | "info") => void;
+}
+
+function TableViewerDrawer({ ent, onClose, setSelectedError, showToast }: TableViewerDrawerProps) {
+  const [syncFilter, setSyncFilter] = useState<"all" | "pending" | "synced">("all");
+  const [searchColumn, setSearchColumn] = useState("");
+  const [searchValue, setSearchValue] = useState("");
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [isRowSyncingMap, setIsRowSyncingMap] = useState<Record<string, boolean>>({});
   const [rowErrorMap, setRowErrorMap] = useState<Record<string, string | null>>({});
 
   const rawRows = useLiveQuery(async () => {
     return await ent.dbTable.toArray();
-  }, [ent.key]) ?? [];
+  }, [ent.key]) ?? EMPTY_ROWS;
 
-  const stringifyRowValue = (row: any): string => {
-    try {
-      return JSON.stringify(row).toLowerCase();
-    } catch {
-      return "";
-    }
-  };
+  const columns = useMemo(() => {
+    if (rawRows.length === 0) return [];
+    return Object.keys(rawRows[0] as object).filter(
+      (k) => k !== "is_dirty" && k !== "is_deleted"
+    );
+  }, [rawRows]);
 
   const filteredRows = useMemo(() => {
-    if (!search.trim()) return rawRows;
-    return rawRows.filter((row: any) =>
-      stringifyRowValue(row).includes(search.toLowerCase())
-    );
-  }, [rawRows, search]);
+    return rawRows.filter((row: any) => {
+      // Don't show logical deletes that are already synced (since they're basically gone from cache)
+      if (row.is_deleted === 1 && row.is_dirty === 0) return false;
 
+      // 1. Sync Filter
+      const isDirty = row.is_dirty === 1;
+      if (syncFilter === "pending" && !isDirty) return false;
+      if (syncFilter === "synced" && isDirty) return false;
+
+      // 2. Search Value Filter
+      if (searchValue.trim()) {
+        const query = searchValue.toLowerCase();
+        if (searchColumn) {
+          const val = row[searchColumn];
+          return val !== undefined && val !== null && String(val).toLowerCase().includes(query);
+        } else {
+          return Object.values(row).some(
+            (val) => val !== undefined && val !== null && String(val).toLowerCase().includes(query)
+          );
+        }
+      }
+      return true;
+    });
+  }, [rawRows, syncFilter, searchColumn, searchValue]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getRowSummary = (row: any): string => {
     switch (ent.key) {
       case "userProfiles":
@@ -575,6 +808,7 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const getRowKey = (row: any, idx: number): string => {
     if (row.id) return String(row.id);
     if (row.user_id && row.date) return `${row.user_id}-${row.date}`;
@@ -582,40 +816,57 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
     return String(idx);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getRowDbKey = (row: any): any => {
+    if (ent.key === "bodyMetrics") return [row.user_id, row.date];
+    if (ent.key === "steps") return [row.user_id, row.date];
+    if (ent.key === "exerciseProgressions") return [row.exercise_id, row.user_id];
+    if (ent.key === "routineExercises") return [row.routine_id, row.exercise_id];
+    return row.id || row.user_id;
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleForceSyncRow = async (e: React.MouseEvent, row: any, idx: number) => {
     e.stopPropagation();
     const rowKey = getRowKey(row, idx);
+    const dbKey = getRowDbKey(row);
     setIsRowSyncingMap((prev) => ({ ...prev, [rowKey]: true }));
     setRowErrorMap((prev) => ({ ...prev, [rowKey]: null }));
 
     try {
-      let dbKey: any = row.id;
-      if (ent.key === "steps" || ent.key === "bodyMetrics") {
-        dbKey = [row.user_id, row.date];
-      } else if (ent.key === "routineExercises") {
-        dbKey = [row.routine_id, row.exercise_id];
+      const rowData = await ent.dbTable.get(dbKey);
+      if (rowData) {
+        rowData.is_dirty = 1;
+        await ent.dbTable.put(rowData);
       }
-      
-      // Update is_dirty flag to 1 in local DB
-      await ent.dbTable.update(dbKey, { is_dirty: 1 });
-      
-      // Immediately trigger table sync push & pull
       await ent.push();
-      await ent.pull();
+      showToast("Record synced successfully", "success");
     } catch (err: any) {
-      console.error("[Sync] Force sync individual row failed:", err);
-      setRowErrorMap((prev) => ({
-        ...prev,
-        [rowKey]: err.message || "Failed to sync. Check server connection.",
-      }));
+      console.error(err);
+      const msg = err?.message || String(err);
+      setRowErrorMap((prev) => ({ ...prev, [rowKey]: msg }));
+      showToast(`Sync failed: ${msg}`, "error");
     } finally {
       setIsRowSyncingMap((prev) => ({ ...prev, [rowKey]: false }));
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleDeleteRow = async (e: React.MouseEvent, row: any) => {
+    e.stopPropagation();
+    const dbKey = getRowDbKey(row);
+    try {
+      await ent.dbTable.delete(dbKey);
+      showToast("Record deleted from local cache", "success");
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Delete failed: ${err.message || err}`, "error");
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden">
-      {/* Mask backdrop */}
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -624,27 +875,19 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
       />
 
-      {/* Drawer */}
+      {/* Drawer Container */}
       <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 28, stiffness: 220 }}
-        className="relative w-full max-w-md h-[85vh] bg-background text-foreground rounded-t-[2.5rem] border-t border-border flex flex-col overflow-hidden shadow-2xl select-none"
-        style={{ background: "var(--background)", borderColor: "var(--border)" }}
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 26, stiffness: 220 }}
+        className="relative w-full max-w-lg h-full bg-card border-l border-border flex flex-col shadow-2xl z-10"
       >
-        {/* Swipe Handle */}
-        <div className="w-12 h-1 bg-muted rounded-full mx-auto mt-4 shrink-0" />
-
-        {/* Header section */}
-        <div className="px-6 pt-5 pb-3 space-y-4 shrink-0">
+        <div className="p-6 pb-4 flex flex-col gap-4">
           <div className="flex justify-between items-start">
             <div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-primary flex items-center gap-1">
-                <ent.icon size={10} /> Local Cache Reader
-              </span>
-              <h3 className="font-black text-xl uppercase tracking-tight text-foreground leading-none mt-1">
-                {ent.label} Data
+              <h3 className="font-black text-md tracking-tight leading-none text-foreground flex items-center gap-1.5 uppercase animate-fade-in">
+                {ent.label} Records
               </h3>
             </div>
             <button
@@ -655,32 +898,74 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
             </button>
           </div>
 
-          {/* Search bar */}
-          <div className="bg-secondary border border-border rounded-xl h-11 flex items-center px-3.5 gap-2.5">
-            <Search size={16} className="text-muted-foreground opacity-60" />
-            <input
-              placeholder={`Search ${ent.label.toLowerCase()} cache...`}
-              className="flex-1 text-xs font-bold bg-transparent outline-none placeholder:text-muted-foreground/40 text-foreground"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <X
-                size={14}
-                className="text-muted-foreground cursor-pointer hover:text-foreground"
-                onClick={() => setSearch("")}
+          {/* Sync Status Filter Tabs */}
+          <div className="flex bg-secondary p-1 rounded-xl border border-border">
+            {(["all", "pending", "synced"] as const).map((filter) => {
+              const isActive = syncFilter === filter;
+              return (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setSyncFilter(filter)}
+                  className="flex-1 py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer"
+                  style={{
+                    background: isActive ? "var(--card)" : "transparent",
+                    color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
+                    boxShadow: isActive ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                    border: isActive ? "1px solid var(--border)" : "1px solid transparent",
+                  }}
+                >
+                  {filter === "all" ? "All" : filter === "pending" ? "Pending" : "Synced"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Column Search Box */}
+          <div className="flex gap-2 items-center">
+            <select
+              value={searchColumn}
+              onChange={(e) => setSearchColumn(e.target.value)}
+              className="bg-secondary border border-border rounded-xl text-[10px] font-bold px-2.5 h-10 select-none outline-none text-foreground cursor-pointer"
+              style={{ minWidth: 100 }}
+            >
+              <option value="">All Fields</option>
+              {columns.map((col) => (
+                <option key={col} value={col}>
+                  {col}
+                </option>
+              ))}
+            </select>
+            <div className="flex-1 bg-secondary border border-border rounded-xl h-10 flex items-center px-3 gap-2">
+              <Search size={14} className="text-muted-foreground opacity-55" />
+              <input
+                placeholder="Search values..."
+                className="flex-1 text-[11px] font-bold bg-transparent outline-none placeholder:text-muted-foreground/35 text-foreground"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
               />
-            )}
+              {searchValue && (
+                <X
+                  size={12}
+                  className="text-muted-foreground cursor-pointer hover:text-foreground"
+                  onClick={() => setSearchValue("")}
+                />
+              )}
+            </div>
           </div>
         </div>
 
         {/* Records list */}
         <div className="flex-1 overflow-y-auto px-6 pb-24 touch-pan-y no-scrollbar">
           <div className="space-y-2.5">
-            {filteredRows.map((row: any, idx: number) => {
+            {filteredRows.map((
+              row: any,
+              idx: number
+            ) => {
               const rowKey = getRowKey(row, idx);
               const isExpanded = expandedRowId === rowKey;
               const isDirty = row.is_dirty === 1;
+              const isDeleted = row.is_deleted === 1;
               const rowError = rowErrorMap[rowKey];
 
               return (
@@ -698,7 +983,9 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
                         {getRowSummary(row)}
                       </span>
                       <div className="flex items-center gap-1.5 mt-1 text-[8px] font-black uppercase tracking-wider text-muted-foreground">
-                        {isDirty ? (
+                        {isDeleted ? (
+                          <span className="text-destructive">Pending Deletion</span>
+                        ) : isDirty ? (
                           <span className="text-warning">Pending Sync</span>
                         ) : (
                           <span className="text-success">Synced</span>
@@ -709,15 +996,25 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
                     </div>
                     
                     <div className="flex items-center gap-2 shrink-0">
+                      {/* Delete button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteRow(e, row)}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center transition-all active:scale-[0.93] hover:bg-destructive/15 text-muted-foreground hover:text-destructive border border-border cursor-pointer"
+                        title="Delete Record"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+
                       <button
                         type="button"
                         onClick={(e) => handleForceSyncRow(e, row, idx)}
                         disabled={isRowSyncingMap[rowKey]}
                         className="h-7 px-2.5 rounded-lg flex items-center gap-1 text-[9px] font-black uppercase tracking-wider transition-all active:scale-95 disabled:opacity-40 cursor-pointer"
                         style={{
-                          background: isDirty ? "var(--warning)" : "var(--primary)",
-                          color: isDirty ? "black" : "var(--primary-foreground)",
-                          boxShadow: isDirty
+                          background: isDirty || isDeleted ? "var(--warning)" : "var(--primary)",
+                          color: isDirty || isDeleted ? "black" : "var(--primary-foreground)",
+                          boxShadow: isDirty || isDeleted
                             ? "0 2px 8px color-mix(in srgb, var(--warning) 25%, transparent)"
                             : "0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent)",
                         }}
@@ -730,7 +1027,7 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
                         <span>
                           {isRowSyncingMap[rowKey]
                             ? "Syncing…"
-                            : isDirty
+                            : isDirty || isDeleted
                             ? "Sync Now"
                             : "Force Sync"}
                         </span>
@@ -752,8 +1049,18 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
                       </pre>
 
                       {rowError && (
-                        <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[10px] font-bold tracking-wider leading-relaxed">
-                          SYNC ERROR: {rowError}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedError({
+                              title: "Record Sync Failed",
+                              error: rowError,
+                              onRetry: () => handleForceSyncRow(e as any, row, idx)
+                            });
+                          }}
+                          className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-[10px] font-bold tracking-wider leading-relaxed cursor-pointer hover:bg-destructive/15 transition-all"
+                        >
+                          SYNC ERROR: {rowError} (Click to expand detail)
                         </div>
                       )}
 
@@ -775,7 +1082,7 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
                           <span>
                             {isRowSyncingMap[rowKey]
                               ? "Syncing Record…"
-                              : isDirty
+                              : isDirty || isDeleted
                               ? "Retry Sync Record"
                               : "Force Sync Record"}
                           </span>
@@ -791,7 +1098,7 @@ function TableViewerDrawer({ ent, onClose }: TableViewerDrawerProps) {
               <div className="py-20 text-center text-muted-foreground opacity-40 flex flex-col items-center justify-center">
                 <Zap size={32} className="mb-2 text-primary" />
                 <p className="text-[10px] font-black uppercase tracking-widest">
-                  No records stored locally
+                  No matching records stored locally
                 </p>
               </div>
             )}

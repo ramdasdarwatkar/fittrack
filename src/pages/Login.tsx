@@ -12,7 +12,7 @@ export default function Login() {
   const [focused, setFocused] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const logoImg = "/fitnex/logo.webp";
+  const logoImg = `${import.meta.env.BASE_URL || "/"}logo.webp`;
 
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 60);
@@ -28,11 +28,15 @@ export default function Login() {
 
     let raf: number;
     let t = 0;
+    let resizeTimeout: number;
 
     const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      if (resizeTimeout) cancelAnimationFrame(resizeTimeout);
+      resizeTimeout = requestAnimationFrame(() => {
+        canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+        canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      });
     };
     resize();
     window.addEventListener("resize", resize);
@@ -122,8 +126,9 @@ export default function Login() {
 
     try {
       await AuthService.signIn(email, password);
-    } catch (err: any) {
-      setError(err.message || "Invalid login credentials");
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Invalid login credentials";
+      setError(errorMsg);
       setIsLoading(false);
     }
   };

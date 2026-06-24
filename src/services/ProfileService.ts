@@ -67,6 +67,7 @@ export const ProfileService = {
     if (toUpsert.length > 0) {
       // Use underscore to ignore the extracted variables
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
       );
 

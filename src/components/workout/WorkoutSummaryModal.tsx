@@ -12,7 +12,6 @@ interface WorkoutSummaryModalProps {
   workout: Tables<"workouts">;
   allWorkoutSets: LocalWorkoutSet[];
   isRetroactive: boolean;
-  runningDurationSec: number;
   note: string;
   setNote: (val: string) => void;
   retroDate?: string;
@@ -26,7 +25,6 @@ export default function WorkoutSummaryModal({
   workout,
   allWorkoutSets,
   isRetroactive,
-  runningDurationSec,
   note,
   setNote,
   retroDate,
@@ -50,7 +48,7 @@ export default function WorkoutSummaryModal({
   }, [allWorkoutSets]);
 
   const handleFinalSaveCommit = async (): Promise<void> => {
-    let computedDuration = runningDurationSec;
+    let computedDuration: number;
     let finalEndIso = new Date().toISOString();
     let finalStartIso = workout.start_time || new Date().toISOString();
     let finalDateString = workout.date;

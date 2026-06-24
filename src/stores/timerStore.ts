@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { TimerState, TimerEntry } from "@/types/timer";
+import type { TimerState } from "@/types/timer";
 
 interface TimerActions {
   startTimer: (id: string, label?: string) => void;

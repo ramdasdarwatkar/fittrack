@@ -84,7 +84,7 @@ export default function Settings() {
         [userId],
     );
 
-    const age = useMemo(() => calcAge((profile as any)?.dob), [profile]);
+    const age = useMemo(() => calcAge(profile?.dob), [profile]);
     const initials = useMemo(() => getInitials(profile?.name), [profile?.name]);
 
     // Show full name as heading; no sub-name duplication

@@ -9,8 +9,6 @@ import {
   Award,
   Moon,
   AlertTriangle,
-  ChevronRight,
-  Trophy,
   Star,
   Sparkles,
   Check,

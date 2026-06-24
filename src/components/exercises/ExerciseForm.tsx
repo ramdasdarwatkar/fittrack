@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { ExerciseService } from "@/services/ExerciseService";
+import { db } from "@/db";
 import {
   MuscleGroupService,
   MuscleService,
@@ -175,6 +176,7 @@ export default function ExerciseForm() {
     type: "error" | "success";
   } | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [isOwnedByUser, setIsOwnedByUser] = useState(true);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -187,6 +189,10 @@ export default function ExerciseForm() {
     rest_seconds: 60,
     metrics: [] as string[],
     is_public: false,
+    min_reps: 0,
+    max_reps: 0,
+    target_weight: null as number | null,
+    progress_weight: 2.5,
   });
 
   // Functional updater so closures never stale
@@ -233,13 +239,28 @@ export default function ExerciseForm() {
       [form.muscle_group_id],
     ) || [];
 
-  // Load exercise data
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
     ExerciseService.get(id)
-      .then((ex) => {
+      .then(async (ex) => {
         if (ex) {
+          if (userId) {
+            setIsOwnedByUser(ex.user_id === userId);
+          }
+          let minReps = 0;
+          let maxReps = 0;
+          let targetWeight: number | null = null;
+          let progressWeight = 2.5;
+          if (userId) {
+            const prog = await db.exerciseProgressions.get([id, userId]);
+            if (prog) {
+              minReps = prog.min_reps;
+              maxReps = prog.max_reps;
+              targetWeight = prog.target_weight;
+              progressWeight = prog.progress_weight ?? 2.5;
+            }
+          }
           setForm({
             name: ex.name,
             muscle_group_id: ex.muscle_group_id,
@@ -249,18 +270,23 @@ export default function ExerciseForm() {
             rest_seconds: ex.rest_seconds || 60,
             metrics: (ex.metrics as string[]) || [],
             is_public: !!ex.is_public,
+            min_reps: minReps,
+            max_reps: maxReps,
+            target_weight: targetWeight,
+            progress_weight: progressWeight,
           });
         }
       })
       .finally(() => setIsLoading(false));
-  }, [id]);
+  }, [id, userId]);
 
   const handleSave = async () => {
     if (!form.name.trim() || !userId || !form.muscle_group_id) return;
     setIsSubmitting(true);
 
+    const exerciseId = id || crypto.randomUUID();
     const payload = {
-      id: id || crypto.randomUUID(),
+      id: exerciseId,
       user_id: userId,
       name: form.name.trim(),
       muscle_group_id: form.muscle_group_id,
@@ -273,7 +299,26 @@ export default function ExerciseForm() {
     };
 
     try {
-      await ExerciseService.upsertLocal(payload);
+      if (isOwnedByUser) {
+        await ExerciseService.upsertLocal(payload);
+      }
+
+      const hasRepsAndWeight = form.metrics.includes("reps") && form.metrics.includes("weight");
+      if (hasRepsAndWeight) {
+        await db.exerciseProgressions.put({
+          exercise_id: exerciseId,
+          user_id: userId,
+          min_reps: Number(form.min_reps) || 0,
+          max_reps: Number(form.max_reps) || 0,
+          target_weight: form.target_weight !== null ? Number(form.target_weight) : null,
+          progress_weight: Number(form.progress_weight) || 0,
+          is_dirty: 1,
+          is_deleted: 0,
+        });
+      } else {
+        await db.exerciseProgressions.delete([exerciseId, userId]);
+      }
+
       setIsDirty(false);
       if (id) {
         setIsEditing(false);
@@ -303,8 +348,21 @@ export default function ExerciseForm() {
       setIsEditing(false);
       setIsDirty(false);
       // Re-hydrate from DB to discard in-memory changes
-      ExerciseService.get(id).then((ex) => {
+      ExerciseService.get(id).then(async (ex) => {
         if (ex) {
+          let minReps = 0;
+          let maxReps = 0;
+          let targetWeight: number | null = null;
+          let progressWeight = 2.5;
+          if (userId) {
+            const prog = await db.exerciseProgressions.get([id, userId]);
+            if (prog) {
+              minReps = prog.min_reps;
+              maxReps = prog.max_reps;
+              targetWeight = prog.target_weight;
+              progressWeight = prog.progress_weight ?? 2.5;
+            }
+          }
           setForm({
             name: ex.name,
             muscle_group_id: ex.muscle_group_id,
@@ -314,6 +372,10 @@ export default function ExerciseForm() {
             rest_seconds: ex.rest_seconds || 60,
             metrics: (ex.metrics as string[]) || [],
             is_public: !!ex.is_public,
+            min_reps: minReps,
+            max_reps: maxReps,
+            target_weight: targetWeight,
+            progress_weight: progressWeight,
           });
         }
       });
@@ -379,7 +441,7 @@ export default function ExerciseForm() {
                 </span>
               </div>
 
-              {isEditing ? (
+              {isEditing && isOwnedByUser ? (
                 <div className="space-y-1">
                   <label
                     htmlFor="exercise-name"
@@ -407,7 +469,7 @@ export default function ExerciseForm() {
                 </h1>
               )}
 
-              {isEditing ? (
+              {isEditing && isOwnedByUser ? (
                 <div className="space-y-1">
                   <label
                     htmlFor="exercise-variation"
@@ -434,7 +496,7 @@ export default function ExerciseForm() {
             </div>
 
             {/* Public toggle */}
-            {isEditing ? (
+            {isEditing && isOwnedByUser ? (
               <button
                 onClick={() => updateForm("is_public", !form.is_public)}
                 aria-pressed={form.is_public}
@@ -504,7 +566,7 @@ export default function ExerciseForm() {
               </label>
               <select
                 id="muscle-group"
-                disabled={!isEditing}
+                disabled={!isEditing || !isOwnedByUser}
                 value={form.muscle_group_id}
                 onChange={(e) => {
                   updateForm("muscle_group_id", Number(e.target.value));
@@ -538,7 +600,7 @@ export default function ExerciseForm() {
               </label>
               <select
                 id="specific-muscle"
-                disabled={!isEditing || !form.muscle_group_id}
+                disabled={!isEditing || !form.muscle_group_id || !isOwnedByUser}
                 value={form.muscle_id || ""}
                 onChange={(e) =>
                   updateForm(
@@ -567,7 +629,7 @@ export default function ExerciseForm() {
             </label>
             <select
               id="equipment"
-              disabled={!isEditing}
+              disabled={!isEditing || !isOwnedByUser}
               value={form.equipment}
               onChange={(e) => updateForm("equipment", e.target.value)}
               className="w-full h-12 px-4 rounded-xl bg-secondary border border-border text-sm font-bold text-foreground outline-none disabled:opacity-50 cursor-pointer focus:border-primary/50 transition-colors"
@@ -604,7 +666,7 @@ export default function ExerciseForm() {
               return (
                 <button
                   key={key}
-                  disabled={!isEditing}
+                  disabled={!isEditing || !isOwnedByUser}
                   onClick={() => {
                     const next = active
                       ? form.metrics.filter((x) => x !== key)
@@ -661,6 +723,122 @@ export default function ExerciseForm() {
           )}
         </section>
 
+        {/* ── DOUBLE PROGRESSION ─────────────────────────────────────────── */}
+        {form.metrics.includes("reps") && form.metrics.includes("weight") && (
+          <section
+            className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4"
+            aria-label="Double progression target"
+          >
+            <div className="flex items-center gap-2" aria-hidden="true">
+              <Activity size={15} className="text-primary" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Double progression target
+              </span>
+            </div>
+
+            {isEditing ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="min-reps"
+                    className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Min Reps
+                  </label>
+                  <input
+                    id="min-reps"
+                    type="number"
+                    min="0"
+                    value={form.min_reps || ""}
+                    onChange={(e) => updateForm("min_reps", parseInt(e.target.value) || 0)}
+                    placeholder="e.g. 8"
+                    className="w-full h-12 px-4 rounded-xl bg-secondary text-sm font-bold text-foreground border border-border outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="max-reps"
+                    className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Max Reps
+                  </label>
+                  <input
+                    id="max-reps"
+                    type="number"
+                    min="0"
+                    value={form.max_reps || ""}
+                    onChange={(e) => updateForm("max_reps", parseInt(e.target.value) || 0)}
+                    placeholder="e.g. 12"
+                    className="w-full h-12 px-4 rounded-xl bg-secondary text-sm font-bold text-foreground border border-border outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="target-weight"
+                    className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Target Weight
+                  </label>
+                  <input
+                    id="target-weight"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={form.target_weight === null ? "" : form.target_weight}
+                    onChange={(e) => updateForm("target_weight", e.target.value === "" ? null : parseFloat(e.target.value))}
+                    placeholder="e.g. 15"
+                    className="w-full h-12 px-4 rounded-xl bg-secondary text-sm font-bold text-foreground border border-border outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label
+                    htmlFor="progress-weight"
+                    className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Progress Weight
+                  </label>
+                  <input
+                    id="progress-weight"
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={form.progress_weight === "" ? "" : form.progress_weight}
+                    onChange={(e) => updateForm("progress_weight", e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                    placeholder="e.g. 2.5"
+                    className="w-full h-12 px-4 rounded-xl bg-secondary text-sm font-bold text-foreground border border-border outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-medium text-foreground">Target reps range</span>
+                  <span className="text-sm font-black text-primary uppercase tracking-tight">
+                    {form.min_reps || form.max_reps
+                      ? `${form.min_reps} - ${form.max_reps} reps`
+                      : "Not set"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-medium text-foreground">Target weight</span>
+                  <span className="text-sm font-black text-primary uppercase tracking-tight">
+                    {form.target_weight !== null ? `${form.target_weight} kg` : "Not set"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="text-sm font-medium text-foreground">Progress weight increment</span>
+                  <span className="text-sm font-black text-primary uppercase tracking-tight">
+                    {form.progress_weight || 0} kg
+                  </span>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* ── REST INTERVAL ────────────────────────────────────────────── */}
         <section
           className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-4"
@@ -688,7 +866,7 @@ export default function ExerciseForm() {
             min="0"
             max="300"
             step="5"
-            disabled={!isEditing}
+            disabled={!isEditing || !isOwnedByUser}
             value={form.rest_seconds}
             onChange={(e) =>
               updateForm("rest_seconds", parseInt(e.target.value))
@@ -702,7 +880,7 @@ export default function ExerciseForm() {
           />
 
           {/* Quick presets */}
-          {isEditing && (
+          {isEditing && isOwnedByUser && (
             <div
               className="flex gap-2 flex-wrap"
               role="group"
@@ -740,13 +918,15 @@ export default function ExerciseForm() {
                 >
                   <Pencil size={15} aria-hidden="true" /> Edit
                 </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  className="w-12 h-12 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center border border-destructive/20 active:scale-90 transition-all cursor-pointer"
-                  aria-label="Delete exercise"
-                >
-                  <Trash2 size={18} aria-hidden="true" />
-                </button>
+                {isOwnedByUser && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-12 h-12 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center border border-destructive/20 active:scale-90 transition-all cursor-pointer"
+                    aria-label="Delete exercise"
+                  >
+                    <Trash2 size={18} aria-hidden="true" />
+                  </button>
+                )}
               </>
             ) : (
               <>

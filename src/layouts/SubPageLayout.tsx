@@ -1,4 +1,4 @@
-import { Outlet, useNavigate, useMatches } from "react-router-dom";
+import { Outlet, useNavigate, useMatches, useLocation } from "react-router-dom";
 import { useLayoutEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 
@@ -10,6 +10,7 @@ interface RouterMatchHandle {
 export default function SubPageLayout() {
   const navigate = useNavigate();
   const matches = useMatches();
+  const { pathname } = useLocation();
 
   // Find the handle metadata for the currently active child route row
   const currentMatch = matches.find((m) => m.handle);
@@ -19,7 +20,7 @@ export default function SubPageLayout() {
   useLayoutEffect(() => {
     const el = document.getElementById("sub-scroll");
     if (el) el.scrollTo({ top: 0 });
-  }, [location.pathname]);
+  }, [pathname]);
 
   return (
     <div

@@ -144,6 +144,7 @@ export const RoutineService = {
     }
     if (routineChanges.toUpsert.length > 0) {
       const payload = routineChanges.toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
       );
       const { error } = await supabase.from("routines").upsert(payload);
@@ -178,6 +179,7 @@ export const RoutineService = {
     }
     if (relationChanges.toUpsert.length > 0) {
       const payload = relationChanges.toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
       );
       const { error } = await supabase

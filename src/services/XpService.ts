@@ -149,7 +149,7 @@ export const XpService = {
     const todayStr = getTodayStr();
     const today = new Date(todayStr);
 
-    let lastWorkoutDateStr = "";
+    let lastWorkoutDateStr: string;
     if (workoutLogs.length > 0) {
       lastWorkoutDateStr = workoutLogs[0].date;
     } else {
@@ -271,6 +271,7 @@ export const XpService = {
 
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest
       );
       const { error } = await supabase.from("xp_log").upsert(payload);

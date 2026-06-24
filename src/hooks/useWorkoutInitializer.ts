@@ -91,6 +91,7 @@ export function useWorkoutInitializer({
                 user_id: userId,
                 date: now.split("T")[0],
                 start_time: now,
+                routine_id: template.routine.id,
               });
               const setsToInsert: LocalSet[] = [];
               template.exercises.sort(

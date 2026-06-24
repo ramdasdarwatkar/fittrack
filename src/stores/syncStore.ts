@@ -25,8 +25,9 @@ export const useSyncStore = create<SyncState>((set) => ({
       await SyncService.pushAll();
 
       set({ lastSyncTime: new Date(), isSyncing: false });
-    } catch (err: any) {
-      set({ error: err.message || "Sync failed", isSyncing: false });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Sync failed";
+      set({ error: errorMsg, isSyncing: false });
     }
   },
 }));

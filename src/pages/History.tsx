@@ -8,8 +8,6 @@ import {
   Plus,
   Moon,
   Dumbbell,
-  Clock,
-  Zap,
   ChevronLeft,
   ChevronRight,
   Calendar,
@@ -95,7 +93,9 @@ async function generateAndShareWorkoutImage(
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const border = isDark ? "#27272a" : "#e4e4e7";
   const primary = "#6f6fee";
-  const workoutName = (workout as any).name ?? "Workout";
+  const workoutName =
+    ((workout as Record<string, unknown>).name as string | undefined) ??
+    "Workout";
 
   const W = 800,
     pad = 48,
@@ -704,7 +704,9 @@ export function HistoryDetails({
 
   const { day, num } = formatDateLabel(workout.date);
   const monthYear = formatMonthYear(workout.date);
-  const workoutName = (workout as any).name ?? "Workout";
+  const workoutName =
+    ((workout as Record<string, unknown>).name as string | undefined) ??
+    "Workout";
 
   const handleCardTap = () =>
     navigate(`/history/${workout.id}`, { state: { workout } });
@@ -1066,7 +1068,6 @@ export default function History() {
     sessionStorage.setItem("history_selected_date", today);
     return today;
   });
-  const [activeWorkouts, setActiveWorkouts] = useState<LocalWorkout[]>([]);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [retroStartTime, setRetroStartTime] = useState("10:00");
   const [retroEndTime, setRetroEndTime] = useState("11:00");
@@ -1123,11 +1124,10 @@ export default function History() {
     return map;
   }, [viewDate]);
 
-  useEffect(() => {
-    if (workoutData) {
-      const dayMeta = workoutData[selectedDateStr];
-      setActiveWorkouts(dayMeta?.workouts ?? []);
-    }
+  const activeWorkouts = useMemo(() => {
+    if (!workoutData) return [];
+    const dayMeta = workoutData[selectedDateStr];
+    return dayMeta?.workouts ?? [];
   }, [workoutData, selectedDateStr]);
 
   const { workoutCount, restCount, missedCount } = useMemo(() => {
@@ -1160,18 +1160,16 @@ export default function History() {
     return { workoutCount: workouts, restCount: rests, missedCount: missed };
   }, [workoutData, viewDate, profileCreatedDateStr]);
 
-  function handleSelectDate(date: string, workouts?: LocalWorkout[]) {
+  function handleSelectDate(date: string) {
     setSelectedDateStr(date);
     sessionStorage.setItem("history_selected_date", date);
-    setActiveWorkouts(workouts ?? []);
   }
 
   const isRestDay = activeWorkouts.some((w) => w.note === "REST_DAY");
   const completedWorkouts = activeWorkouts.filter((w) => w.completed === 1 && w.note !== "REST_DAY");
   const hasWorkout = completedWorkouts.length > 0;
 
-  const defaultRetroStart = "10:00";
-  const defaultRetroEnd = "11:00";
+
 
   return (
     <div className="w-full flex flex-col gap-0">

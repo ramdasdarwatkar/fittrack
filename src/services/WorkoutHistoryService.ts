@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import type { LocalWorkout, LocalExercise, LocalSet } from "@/db";
+import type { LocalWorkout, LocalExercise } from "@/db";
 
 export interface WorkoutHistoryCard {
   workout: LocalWorkout;

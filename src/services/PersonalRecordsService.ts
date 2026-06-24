@@ -44,14 +44,23 @@ export const PersonalRecordsService = {
   ): Promise<LocalPersonalRecord> {
     const nowIso = new Date().toISOString();
 
+    // Look for existing record to reuse ID and avoid duplicate key violation on Supabase
+    const existing = await db.personalRecords
+      .where("user_id")
+      .equals(userId)
+      .filter((r) => r.exercise_id === exerciseId && r.prtype === "weight" && r.is_deleted !== 1)
+      .first();
+
+    const recordId = existing ? existing.id : crypto.randomUUID();
+
     const newRecord: LocalPersonalRecord = {
-      id: crypto.randomUUID(),
+      id: recordId,
       user_id: userId,
       exercise_id: exerciseId,
       set_id: setId, // Linked set reference requirement satisfied
       value: absoluteWeight, // Explicitly mapped to your schema's numerical property
       prtype: "weight",
-      created_at: nowIso,
+      created_at: existing ? existing.created_at : nowIso,
       updated_at: nowIso, // Sync update requirement satisfied
       is_dirty: 1,
       is_deleted: 0,
@@ -90,6 +99,7 @@ export const PersonalRecordsService = {
 
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, ...rest }) => rest,
       );
 

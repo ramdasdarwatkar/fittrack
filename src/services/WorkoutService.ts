@@ -15,7 +15,7 @@ export const WorkoutService = {
   },
 
   async initializeSession(
-    payload: TablesInsert<"workouts">,
+    payload: TablesInsert<"workouts"> & { routine_id?: string | null },
   ): Promise<LocalWorkout> {
     const record: LocalWorkout = {
       id: payload.id || crypto.randomUUID(),
@@ -29,6 +29,7 @@ export const WorkoutService = {
       is_dirty: 1,
       is_deleted: 0,
       updated_at: new Date().toISOString(),
+      routine_id: payload.routine_id || null,
     };
     await db.workouts.put(record);
     return record;
@@ -145,6 +146,7 @@ export const WorkoutService = {
     }
     if (toUpsert.length > 0) {
       const payload = toUpsert.map(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         ({ is_dirty: _d, is_deleted: _del, completed: _c, ...rest }) => rest,
       );
       const { error } = await supabase.from("workouts").upsert(payload);
