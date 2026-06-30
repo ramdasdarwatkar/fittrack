@@ -258,16 +258,24 @@ export default function ExerciseCard({
       const succeeded = logged.every((reps, idx) => reps >= currentTargetReps[idx]);
 
       if (succeeded) {
-        const allReachedMax = currentTargetReps.every((r) => r >= maxReps);
+        const allReachedMax = logged.every((r) => r >= maxReps);
         if (allReachedMax) {
           weightIncrement = true;
           currentTargetReps = Array(logged.length).fill(minReps);
         } else {
           weightIncrement = false;
+          // Fast-forward target to match what they actually achieved, plus 1 rep
+          currentTargetReps = [...logged];
           const minVal = Math.min(...currentTargetReps);
           const idxToIncrement = currentTargetReps.indexOf(minVal);
-          if (idxToIncrement !== -1) {
-            currentTargetReps[idxToIncrement] = Math.min(maxReps, currentTargetReps[idxToIncrement] + 1);
+          if (idxToIncrement !== -1 && currentTargetReps[idxToIncrement] < maxReps) {
+            currentTargetReps[idxToIncrement] += 1;
+          } else {
+            // If the minimum is already at maxReps, find any other that is below maxReps
+            const belowMaxIdx = currentTargetReps.findIndex((r) => r < maxReps);
+            if (belowMaxIdx !== -1) {
+              currentTargetReps[belowMaxIdx] += 1;
+            }
           }
         }
       } else {
@@ -535,49 +543,30 @@ export default function ExerciseCard({
             <div
               className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border"
               style={{
-                background:
-                  doubleProgressionSuggestion.type === "progress"
-                    ? "color-mix(in srgb, var(--success) 8%, transparent)"
-                    : "color-mix(in srgb, var(--primary) 6%, transparent)",
-                borderColor:
-                  doubleProgressionSuggestion.type === "progress"
-                    ? "color-mix(in srgb, var(--success) 20%, transparent)"
-                    : "color-mix(in srgb, var(--primary) 15%, transparent)",
+                background: "color-mix(in srgb, var(--success) 8%, transparent)",
+                borderColor: "color-mix(in srgb, var(--success) 20%, transparent)",
               }}
             >
               <span
                 className="text-xs font-black tracking-tight"
                 style={{
                   whiteSpace: "pre-wrap",
-                  color:
-                    doubleProgressionSuggestion.type === "progress"
-                      ? "var(--success)"
-                      : "var(--primary)",
+                  color: "var(--success)",
                 }}
               >
                 {doubleProgressionSuggestion.message}
               </span>
               {doubleProgressionSuggestion.workoutCount !== undefined && (
                 <div
-                  className="flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-black shrink-0"
+                  className="flex items-center justify-center px-1.5 py-0.5 rounded-md text-[9px] font-black shrink-0 uppercase tracking-wider"
                   style={{
-                    background:
-                      doubleProgressionSuggestion.type === "progress"
-                        ? "color-mix(in srgb, var(--success) 20%, transparent)"
-                        : "color-mix(in srgb, var(--primary) 15%, transparent)",
-                    color:
-                      doubleProgressionSuggestion.type === "progress"
-                        ? "var(--success)"
-                        : "var(--primary)",
-                    border: `1px solid ${
-                      doubleProgressionSuggestion.type === "progress"
-                        ? "color-mix(in srgb, var(--success) 40%, transparent)"
-                        : "color-mix(in srgb, var(--primary) 30%, transparent)"
-                    }`,
+                    background: "color-mix(in srgb, var(--success) 15%, transparent)",
+                    color: "var(--success)",
+                    border: "1px solid color-mix(in srgb, var(--success) 30%, transparent)",
                   }}
                   title={`Workout ${doubleProgressionSuggestion.workoutCount} at this weight`}
                 >
-                  {doubleProgressionSuggestion.workoutCount}
+                  W{doubleProgressionSuggestion.workoutCount}
                 </div>
               )}
             </div>

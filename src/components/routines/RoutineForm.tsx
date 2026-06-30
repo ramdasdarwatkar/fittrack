@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   Trash2,
@@ -122,9 +122,8 @@ function Toast({ message, type = "error", onDismiss }: ToastProps) {
       className="fixed top-4 inset-x-4 z-50 flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-2xl"
     >
       <div
-        className={`h-2 w-2 rounded-full shrink-0 ${
-          type === "error" ? "bg-destructive" : "bg-success"
-        }`}
+        className={`h-2 w-2 rounded-full shrink-0 ${type === "error" ? "bg-destructive" : "bg-success"
+          }`}
         aria-hidden="true"
       />
       <p className="text-sm text-foreground flex-1">{message}</p>
@@ -497,15 +496,6 @@ export default function RoutineForm() {
             <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
               Exercise sequence
             </span>
-            {isEditing && (
-              <button
-                onClick={() => setShowSelector(true)}
-                className="flex items-center gap-1.5 text-primary transition-all active:scale-95 font-black text-xs uppercase tracking-wider cursor-pointer"
-                aria-label="Add exercises to routine"
-              >
-                <Plus size={14} strokeWidth={2.5} aria-hidden="true" /> Add
-              </button>
-            )}
           </div>
 
           {/* Empty state */}
@@ -536,14 +526,17 @@ export default function RoutineForm() {
                         {index + 1}
                       </span>
                       <div className="min-w-0">
-                        <h3 className="font-black text-sm uppercase tracking-tight truncate text-foreground leading-none">
-                          {ex.name}
-                        </h3>
-                        {ex.variation && (
-                          <span className="text-[10px] text-primary font-bold mt-0.5 block">
-                            {ex.variation}
-                          </span>
-                        )}
+                        <Link to={`/library/exercise/${ex.id}`} className="hover:opacity-80 transition-opacity block group">
+                          <h3 className="font-black text-sm uppercase tracking-tight truncate text-foreground leading-none group-hover:text-primary transition-colors">
+                            {ex.name}
+                          </h3>
+                          {(ex.variation || ex.equipment) && (
+                            <span className="text-[10px] text-primary font-bold mt-0.5 flex items-center gap-1.5">
+                              {ex.variation && <span>{ex.variation}</span>}
+                              {ex.equipment && <span className="text-success">{ex.equipment}</span>}
+                            </span>
+                          )}
+                        </Link>
                       </div>
                     </div>
 

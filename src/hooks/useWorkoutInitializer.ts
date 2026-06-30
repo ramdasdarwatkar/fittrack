@@ -6,6 +6,7 @@ import { RoutineService } from "@/services/RoutineService";
 import { useWorkoutUIStore } from "@/stores/useWorkoutUIStore";
 import type { Tables } from "@/db/supabase";
 import type { LocalSet } from "@/db";
+import { supabase } from "@/lib/supabase";
 
 interface InitializerProps {
   userId: string | null;
@@ -24,10 +25,8 @@ export function useWorkoutInitializer({
   const mode = searchParams.get("mode");
 
   useEffect(() => {
-    import("@/lib/supabase").then(({ supabase }) => {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) setUserId(user.id);
-      });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
     });
   }, [setUserId]);
 

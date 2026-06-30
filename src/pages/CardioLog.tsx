@@ -316,9 +316,10 @@ export default function CardioLog() {
                 <span className="font-black text-sm uppercase tracking-tight text-primary">
                   {selectedExercise.name}
                 </span>
-                {selectedExercise.variation && (
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mt-0.5">
-                    {selectedExercise.variation}
+                {(selectedExercise.variation || selectedExercise.equipment) && (
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                    {selectedExercise.variation && <span>{selectedExercise.variation}</span>}
+                    {selectedExercise.equipment && <span className="text-success">{selectedExercise.equipment}</span>}
                   </span>
                 )}
               </div>
@@ -553,9 +554,10 @@ export default function CardioLog() {
                           >
                             {ex.name}
                           </span>
-                          {ex.variation && (
-                            <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5 text-muted-foreground">
-                              {ex.variation}
+                          {(ex.variation || ex.equipment) && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5 text-muted-foreground">
+                              {ex.variation && <span>{ex.variation}</span>}
+                              {ex.equipment && <span className="text-success">{ex.equipment}</span>}
                             </span>
                           )}
                         </div>

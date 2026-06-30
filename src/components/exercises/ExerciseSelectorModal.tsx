@@ -176,11 +176,12 @@ export default function ExerciseSelectorModal({
                         >
                           {ex.name}
                         </span>
-                        {ex.variation && (
-                          <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${
+                        {(ex.variation || ex.equipment) && (
+                          <span className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1.5 ${
                             isAlreadySelected ? "text-muted-foreground/60" : "text-primary"
                           }`}>
-                            {ex.variation}
+                            {ex.variation && <span>{ex.variation}</span>}
+                            {ex.equipment && <span className="text-success">{ex.equipment}</span>}
                           </span>
                         )}
                         {isAlreadySelected && (

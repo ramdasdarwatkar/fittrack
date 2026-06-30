@@ -488,9 +488,18 @@ export default function ExerciseForm() {
                     className="w-full h-11 px-4 rounded-xl bg-secondary text-sm font-medium text-foreground border border-border outline-none focus:border-primary/50 transition-colors"
                   />
                 </div>
-              ) : form.variation ? (
-                <div className="inline-flex h-7 items-center px-3 rounded-lg bg-primary/10 text-primary text-[10px] font-black uppercase tracking-wider">
-                  {form.variation}
+              ) : (form.variation || form.equipment) ? (
+                <div className="flex items-center gap-2">
+                  {form.variation && (
+                    <div className="inline-flex h-7 items-center px-3 rounded-lg bg-primary/10 text-primary text-[10px] font-black uppercase tracking-wider">
+                      {form.variation}
+                    </div>
+                  )}
+                  {form.equipment && (
+                    <div className="inline-flex h-7 items-center px-3 rounded-lg bg-success/10 text-success text-[10px] font-black uppercase tracking-wider">
+                      {form.equipment}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

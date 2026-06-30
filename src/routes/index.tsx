@@ -18,7 +18,7 @@ import AppearanceSettings from "@/components/settings/AppearanceSettings";
 import BodyMetricsSettings from "@/components/settings/BodyMetricsSettings";
 import SyncSettings from "@/components/settings/SyncSettings";
 import XPLevelsSettings from "@/components/settings/XPLevelsSettings";
-
+import Goals from "@/pages/Goals";
 
 const router = createBrowserRouter(
   [
@@ -77,6 +77,17 @@ const router = createBrowserRouter(
               index: true,
               element: <CardioLog />,
               handle: { title: "Log Cardio" },
+            },
+          ],
+        },
+        {
+          path: "/goals",
+          element: <SubPageLayout />,
+          children: [
+            {
+              index: true,
+              element: <Goals />,
+              handle: { title: "My Goals" },
             },
           ],
         },

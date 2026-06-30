@@ -103,9 +103,10 @@ export default function ExerciseList() {
                     <h3 className="truncate text-base font-black uppercase tracking-tight text-foreground group-hover:text-primary transition-colors leading-none">
                       {item.name}
                     </h3>
-                    {item.variation && (
-                      <p className="truncate text-[10px] font-bold text-primary uppercase tracking-widest leading-none mt-1.5">
-                        {item.variation}
+                    {(item.variation || item.equipment) && (
+                      <p className="truncate text-[10px] font-bold text-primary uppercase tracking-widest leading-none mt-1.5 flex items-center gap-1.5">
+                        {item.variation && <span>{item.variation}</span>}
+                        {item.equipment && <span className="text-success">{item.equipment}</span>}
                       </p>
                     )}
                   </div>

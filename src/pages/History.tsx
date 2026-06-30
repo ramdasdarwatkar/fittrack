@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Share2,
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1044,10 +1045,8 @@ export default function History() {
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    import("@/lib/supabase").then(({ supabase }) => {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (user) setUserId(user.id);
-      });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUserId(user.id);
     });
   }, []);
 
@@ -1094,8 +1093,9 @@ export default function History() {
   const workoutData = useLiveQuery(async () => {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
-    const startIso = new Date(year, month, 1).toISOString().split("T")[0];
-    const endIso = new Date(year, month + 1, 0).toISOString().split("T")[0];
+    const startIso = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const endIso = `${year}-${String(month + 1).padStart(2, "0")}-${String(totalDays).padStart(2, "0")}`;
 
     const workouts = await db.workouts
       .where("date")
@@ -1114,7 +1114,7 @@ export default function History() {
         };
       }
       map[dateStr].workouts.push(w);
-      if (w.completed === 1 && w.note !== "REST_DAY") {
+      if ((w.completed === 1 || !!w.end_time) && w.note !== "REST_DAY") {
         map[dateStr].hasWorkout = true;
       }
       if (w.note === "REST_DAY") {
@@ -1148,7 +1148,7 @@ export default function History() {
       const meta = workoutData[dateStr];
 
       if (meta?.hasWorkout) {
-        const completedCount = meta.workouts.filter((w) => w.completed === 1 && w.note !== "REST_DAY").length;
+        const completedCount = meta.workouts.filter((w) => (w.completed === 1 || !!w.end_time) && w.note !== "REST_DAY").length;
         workouts += completedCount;
       } else if (meta?.isRestDay) {
         rests++;
@@ -1166,7 +1166,7 @@ export default function History() {
   }
 
   const isRestDay = activeWorkouts.some((w) => w.note === "REST_DAY");
-  const completedWorkouts = activeWorkouts.filter((w) => w.completed === 1 && w.note !== "REST_DAY");
+  const completedWorkouts = activeWorkouts.filter((w) => (w.completed === 1 || !!w.end_time) && w.note !== "REST_DAY");
   const hasWorkout = completedWorkouts.length > 0;
 
 
